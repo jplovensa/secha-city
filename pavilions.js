@@ -61,7 +61,7 @@ export function createPavilions(scene,textureLoader,studyURL,addSolids,removeSol
       const work=kit==='atelier';
       placeAsset(container,work ? /Kenwood.*oak.dining.table/i : /Scovato.*travertine.coffee.table/i,0,-.24,0);
       for(const side of [-1,1]){
-        placeAsset(container,/Forest.archive.curved.designer.chair/i,side*(work?1.65:1.5),-.13,-side*1.04);
+        placeAsset(container,/Forest.archive.curved.designer.chair/i,side*(work?2.07:1.5),-.13,-side*1.04);
       }
     }
   }

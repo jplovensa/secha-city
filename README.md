@@ -4,7 +4,7 @@
 
 ## Central City
 
-Open **Run Central City** to manage the interior district. The city starts with four vacant plots, one designer and 1,200 credits. Hire a builder or designer, choose a pavilion and shell material, assign an available worker, furnish the finished room and open it. Visitors generate revenue for the next sites. Each built pavilion can be explored at eye level. City operations are saved in the current browser.
+Open **Run Central City** to manage the interior district. The city starts with four vacant plots, one designer and 1,200 credits. Hire a builder or designer, choose a pavilion and shell material, assign an available worker, furnish the finished room and open it. Visitors generate revenue for the next sites. Drag over a plot to orbit it, scroll to zoom, or explore a built pavilion at eye level. City operations are saved in the current browser.
 
 ## Story missions
 

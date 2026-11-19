@@ -792,11 +792,18 @@ canvas.addEventListener('pointerdown',event => {
 });
 canvas.addEventListener('pointermove', event => {
   if (drag?.id !== event.pointerId) return;
-  city.turn(event.clientX - drag.x,event.clientY - drag.y);
+  const dx=event.clientX-drag.x,dy=event.clientY-drag.y;
+  if(managing && !director.onFoot) city.orbitPlot(dx,dy);
+  else city.turn(dx,dy);
   drag.x = event.clientX;
   drag.y = event.clientY;
 });
 canvas.addEventListener('lostpointercapture', () => { drag = null; });
+canvas.addEventListener('wheel',event=>{
+  if(!managing || director.onFoot) return;
+  event.preventDefault();
+  city.orbitPlot(0,0,event.deltaY);
+},{passive:false});
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -850,7 +857,10 @@ function frame(now) {
     const forward = Number(keys.has('KeyW') || keys.has('ArrowUp')) - Number(keys.has('KeyS') || keys.has('ArrowDown'));
     const right = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
     const turn = Number(keys.has('ArrowRight')) - Number(keys.has('ArrowLeft'));
-    if (turn) city.turn(turn * delta * 320,0);
+    if (turn) {
+      if(managing && !director.onFoot) city.orbitPlot(turn*delta*320,0);
+      else city.turn(turn*delta*320,0);
+    }
     if ((forward || right) && (!managing || director.onFoot)) city.walk(right,forward,delta);
   }
   if (now-lastDraw > 1000/35) {

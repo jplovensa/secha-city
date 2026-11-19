@@ -321,12 +321,35 @@ export function createCity(canvas, onIssue) {
     dirty=true;
   }
 
+  let plotFocus;
+  const orbit={angle:.55,elevation:.53,radius:15.4};
+
+  function renderOrbit() {
+    if(!plotFocus) return;
+    const horizontal=orbit.radius*Math.cos(orbit.elevation);
+    const eye=[plotFocus.x+Math.sin(orbit.angle)*horizontal,
+      -(plotFocus.z+Math.cos(orbit.angle)*horizontal),
+      .86+Math.sin(orbit.elevation)*orbit.radius];
+    lookFrom(eye,[plotFocus.x,-plotFocus.z,.86]);
+  }
+
   function focusPlot(id,walkThrough=false) {
     const plot=plots.find(item=>item.id===id);
     if(!plot) return;
     pavilions.select(id);
+    plotFocus=plot;
     if(walkThrough) lookFrom([plot.x,-(plot.z+4.1),1.73],[plot.x,-plot.z,1.33]);
-    else lookFrom([plot.x+7,-(plot.z+11.4),8.6],[plot.x,-plot.z,.86]);
+    else {
+      orbit.angle=.55;orbit.elevation=.53;orbit.radius=15.4;
+      renderOrbit();
+    }
+  }
+
+  function orbitPlot(dx,dy,zoom=0) {
+    orbit.angle-=dx*.006;
+    orbit.elevation=THREE.MathUtils.clamp(orbit.elevation+dy*.004,.20,1.2);
+    orbit.radius=THREE.MathUtils.clamp(orbit.radius*Math.exp(zoom*.001),8,46);
+    renderOrbit();
   }
 
   const guestLocations = {
@@ -507,6 +530,6 @@ export function createCity(canvas, onIssue) {
 
   return { load, lookFrom, turn, walk, setStage, setDesign, draw, animate, marker, approach, distanceTo,
     preloadCast:cast.preload, showCast:cast.show, addPerson, removePerson:id=>{cast.removePerson(id);dirty=true;},
-    setMood, openDistrict, beginDrive, stopDrive:placeByCar, drive, openDirector, showDevelopment, focusPlot };
+    setMood, openDistrict, beginDrive, stopDrive:placeByCar, drive, openDirector, showDevelopment, focusPlot, orbitPlot };
 
 }
