@@ -59,6 +59,10 @@ export function createCity(canvas, onIssue) {
       for (let p = node; p && p !== object; p = p.parent) chain.push(p.name);
       const ancestry = chain.join('/');
       const material = node.material;
+      if (/warm led diffuser|teduh lamp milk/i.test(material.name)) {
+        material.emissive.set('#eebc79');
+        material.emissiveIntensity = .7;
+      }
       if (material.map && !textures.has(material.map)) {
         textures.add(material.map);
         material.map.anisotropy = anisotropy;

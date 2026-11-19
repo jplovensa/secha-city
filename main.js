@@ -16,6 +16,8 @@ let city;
 let coverOpen = true;
 let index = -1;
 let activeStage = 3;
+let wayangPlayback;
+let stagePlaying = false;
 let design = { ...defaults };
 let comparison = false;
 let handed = false;
@@ -61,6 +63,26 @@ function makeChoices(choices, selected, onSelect) {
 
 function sense(name, note) {
   senseNotes.set(name,note);
+}
+
+function stopWayangPlayback() {
+  clearTimeout(wayangPlayback);
+  stagePlaying = false;
+}
+
+function replayWayang() {
+  if (stagePlaying) {
+    stopWayangPlayback();
+    renderStory();
+    return;
+  }
+  stagePlaying = true;
+  const play = (stage) => {
+    if (stage === stages.length - 1) stopWayangPlayback();
+    setStage(stage);
+    if (stagePlaying) wayangPlayback = setTimeout(() => play(stage + 1), 1250);
+  };
+  play(0);
 }
 
 function setStage(stage) {
@@ -146,7 +168,12 @@ function renderStory() {
     story.append(storyNote(finishes[design.finish].note));
   }
   if (stop.id === 'wayang') {
-    story.append(makeChoices(stages.map((s,i) => [i,s.label]),activeStage,setStage));
+    const steps = makeChoices(stages.map((s,i) => [i,s.label]),activeStage,stage => {
+      stopWayangPlayback();
+      setStage(stage);
+    });
+    steps.append(button(stagePlaying ? 'Pause sequence' : 'Play sequence',replayWayang));
+    story.append(steps);
     story.append(storyNote(stages[activeStage].note));
     if (guided) {
       const img = document.createElement('img');
@@ -212,6 +239,7 @@ function showNotice(message) {
 
 async function go(next) {
   const version = ++transition;
+  stopWayangPlayback();
   keys.clear();
   setMap(false);
   const stop = stops[next];
@@ -222,7 +250,7 @@ async function go(next) {
     showNotice('Opening ' + stop.area + '…');
     try {
       await city.load(model);
-      if (stop.id === 'worktable') await city.load('teduh');
+      if (stop.id === 'worktable') city.load('teduh').catch(() => {});
     } catch (error) {
       console.warn(error);
       if (version !== transition) return;

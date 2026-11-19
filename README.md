@@ -19,4 +19,4 @@ npm run check
 
 Push to `main` to publish the Vite build with GitHub Actions. The relative Vite base and public model URLs work when the site lives under `/secha-city/`. For the source export, run `tools/export_scene.py` from the SketchUp model workspace with its SketchUp SDK loader and the model path and output directory as arguments.
 
-The carved panel uses profiles from the Tropenmuseum collection. The city model, SECHA branding and design direction are from the SECHA City project.
+The carved panel uses profiles from the Tropenmuseum collection. See [the artwork credits](public/ARTWORK-CREDITS.md) for source objects, adaptations and licence. The city model, SECHA branding and design direction are from the SECHA City project.

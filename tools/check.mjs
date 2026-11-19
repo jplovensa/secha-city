@@ -22,6 +22,13 @@ for (const name of ['arrival','gallery','teduh']) {
   assert.equal(payload.toString('ascii',0,4),'glTF');
   assert.equal(payload.readUInt32LE(8),payload.length);
   assert.ok(payload.length < 20_000_000, name + ' exceeds chapter budget');
+  const manifest = JSON.parse(payload.toString('utf8',20,20 + payload.readUInt32LE(12)));
+  assert.ok(manifest.meshes.length > 0);
+  if (name === 'gallery') {
+    for (const stage of ['WayangDrawing','WayangBlank','WayangCarving','WayangLight']) {
+      assert.ok(manifest.nodes.some(node => node.name === stage), stage + ' is missing');
+    }
+  }
 }
 const files = await readdir(new URL('assets/',dist));
 assert.ok(files.some(file => file.endsWith('.js')));
