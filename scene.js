@@ -1,10 +1,13 @@
 import * as THREE from 'three';
+import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { dividerLayout, finishes } from './chapter.js';
 import { createCast, encounters } from './characters.js';
 import { applyFurnitureLayout } from './layout.js';
 import { driveStep, routeCheckpoints } from './traffic.js';
+import { createPavilions } from './pavilions.js';
+import { plots } from './city-operations.js';
 
 const files = ['arrival', 'gallery', 'teduh','district'];
 const asset = (name) => new URL(import.meta.env.BASE_URL + name, document.baseURI).href;
@@ -23,7 +26,9 @@ export function createCity(canvas, onIssue) {
   scene.fog = new THREE.FogExp2('#d8c9ae', .016);
   const camera = new THREE.PerspectiveCamera(56, 1, .075, 125);
   camera.rotation.order = 'YXZ';
-  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  const basisPath=import.meta.env.DEV ? '/node_modules/three/examples/jsm/libs/basis/' : asset('basis/');
+  const ktx=new KTX2Loader().setTranscoderPath(basisPath).setWorkerLimit(1).detectSupport(renderer);
+  const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).setKTX2Loader(ktx);
   const cast = createCast(scene, name => loader.loadAsync(asset(name)));
   const sky = new THREE.HemisphereLight('#fcf1dc', '#a5947a', 2.05);
   const sun = new THREE.DirectionalLight('#ffdfaf', 2.0);
@@ -76,7 +81,7 @@ export function createCity(canvas, onIssue) {
       if (!solidParent.test(ancestry) || ignored.test(ancestry) || material.transparent) return;
       node.geometry.computeBoundingBox();
       const box = node.geometry.boundingBox.clone().applyMatrix4(node.matrixWorld);
-      if (box.max.y - box.min.y > .32) collision.push({node,box});
+      if (box.max.y - box.min.y > .32) collision.push({node,box,owner:object});
     });
   }
 
@@ -263,6 +268,67 @@ export function createCity(canvas, onIssue) {
     };
   }
 
+  const pavilions=createPavilions(scene,new THREE.TextureLoader(),asset('wayang-study.png'),collectSolids,owner=>{
+    for(let i=collision.length-1;i>=0;i--) if(collision[i].owner===owner) collision.splice(i,1);
+  });
+  const directorPeople=new Map();
+
+  function clearPlotTrees() {
+    arrivalScene?.traverse(tree=>{
+      if(!/Terminalia.*tropical.almond/i.test(tree.name)) return;
+      const at=tree.getWorldPosition(new THREE.Vector3());
+      for(const plot of plots) {
+        const dx=at.x-plot.x,dz=at.z-plot.z;
+        const distance=Math.hypot(dx,dz);
+        if(distance>=3.90) continue;
+        at.x=plot.x+(distance ? dx/distance : 1)*3.96;
+        at.z=plot.z+(distance ? dz/distance : 0)*3.96;
+        tree.position.copy(tree.parent.worldToLocal(at));
+      }
+    });
+  }
+
+  async function openDirector() {
+    await load('district');
+    await cast.show('director');
+    clearPlotTrees();
+    load('gallery').then(gallery=>{pavilions.attachGallery(gallery);dirty=true;}).catch(console.warn);
+    dirty=true;
+  }
+
+  function showDevelopment(state) {
+    pavilions.sync(state);
+    for(const plot of plots) {
+      const site=state.plots[plot.id];
+      const expected=site?.phase==='building' ? 'worker' : site?.phase==='open' ? 'visitor' : '';
+      const existing=directorPeople.get(plot.id);
+      if(expected===existing?.role) continue;
+      if(existing?.id) cast.removePerson(existing.id);
+      directorPeople.delete(plot.id);
+      if(!expected) continue;
+      const slot={role:expected};
+      directorPeople.set(plot.id,slot);
+      const person=state.workers.find(worker=>worker.id===site.worker);
+      const name=expected==='worker' ? person?.name??'Builder' : 'Visitor';
+      const position=new THREE.Vector3(plot.x+1.2,.12,plot.z+2.6);
+      const from=[plot.x+1.65,.12,plot.z+3.35];
+      cast.addPerson(name,expected==='visitor'?'visitor':'guest',position,camera,'director',from).then(id=>{
+        if(directorPeople.get(plot.id)===slot) slot.id=id;
+        else cast.removePerson(id);
+        dirty=true;
+      }).catch(console.warn);
+    }
+    dirty=true;
+  }
+
+  function focusPlot(id,walkThrough=false) {
+    const plot=plots.find(item=>item.id===id);
+    if(!plot) return;
+    pavilions.select(id);
+    if(walkThrough) lookFrom([plot.x,-(plot.z+4.1),1.73],[plot.x,-plot.z,1.33]);
+    else lookFrom([plot.x+7,-(plot.z+11.4),8.6],[plot.x,-plot.z,.86]);
+  }
+
   const guestLocations = {
     arrival:[[2.85,.10,34.3],[-2.05,.10,34.7],[-3.4,.10,35.0],[3.55,.10,35.5]],
     garden:[[-8.75,.09,23.3],[-9.9,.09,24.5],[-4.5,.09,24.6],[-3,.09,23.6]],
@@ -441,6 +507,6 @@ export function createCity(canvas, onIssue) {
 
   return { load, lookFrom, turn, walk, setStage, setDesign, draw, animate, marker, approach, distanceTo,
     preloadCast:cast.preload, showCast:cast.show, addPerson, removePerson:id=>{cast.removePerson(id);dirty=true;},
-    setMood, openDistrict, beginDrive, stopDrive:placeByCar, drive };
+    setMood, openDistrict, beginDrive, stopDrive:placeByCar, drive, openDirector, showDevelopment, focusPlot };
 
 }

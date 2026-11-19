@@ -7,6 +7,7 @@ import { newChapter, stageActions } from './gameplay.js';
 import { handoverCue } from './voice-cues.js';
 import { chapterFor, chapters, commissionBudget, packages, quote } from './campaign.js';
 import { routeCheckpoints } from './traffic.js';
+import { makeDirector } from './director-ui.js';
 
 const $ = id => document.getElementById(id);
 const experience = $('experience');
@@ -39,6 +40,7 @@ let lastDraw = 0;
 let approaching = false;
 let blockedFor = 0;
 let campaignDone = false;
+let managing=false;
 let roaming = false;
 let driving = false;
 let mood = '';
@@ -46,6 +48,12 @@ let selections = {};
 const guests = new Map();
 let nextGuestId=0;
 let loaded = false;
+const director=makeDirector($('director'),()=>city,async(key,text,actor)=>{
+  voice.setEnabled(true);
+  refreshVoiceControls();
+  try { await voice.play(key,text,actor,refreshVoiceControls); }
+  catch { showNotice('Built-in speech could not start on this device.'); }
+},()=>voice.available);
 
 try {
   design = updateDesign(defaults, JSON.parse(localStorage.getItem(storageKey) || '{}'));
@@ -342,6 +350,7 @@ function renderUI() {
   for(const slider of document.querySelectorAll('#design .slider')) slider.hidden=stop.id==='commission';
   $('current').textContent=stop.id==='commission' ? 'Installed' : 'Your room';
   $('cast-toggle').hidden=guided || roaming;
+  $('manage-toggle').hidden=guided;
   $('city-toggle').hidden=guided || !campaignDone;
   renderStory();
   refreshDesign();
@@ -373,6 +382,9 @@ function showNotice(message) {
 async function go(next) {
   const version = ++transition;
   if (driving) city.stopDrive();
+  if(managing) director.close();
+  managing=false;
+  experience.classList.remove('management');
   roaming=false;
   driving=false;
   $('roam').hidden=true;
@@ -508,6 +520,8 @@ for (const [i,stop] of stops.entries()) {
 
 $('enter').addEventListener('click', () => begin(false));
 $('guided').addEventListener('click', () => begin(true));
+$('manage-start').addEventListener('click',openManagement);
+$('manage-toggle').addEventListener('click',openManagement);
 function voiceKey() {
   const stop = stops[index];
   if (!stop || !chapter.met(stop.id)) return '';
@@ -526,7 +540,7 @@ function refreshVoiceControls() {
 
 async function playCurrentVoice() {
   try {
-    if (await voice.play(voiceKey())) refreshVoiceControls();
+    if (await voice.play(voiceKey(),$('speech').textContent,encounters[stops[index]?.id]?.actor,refreshVoiceControls)) refreshVoiceControls();
   } catch (error) {
     const blocked = error.name === 'NotAllowedError';
     showNotice(blocked ? 'Tap Play voice to hear the dialogue.' : 'The voice clip could not play. The dialogue is shown below.');
@@ -640,7 +654,7 @@ function updateDrivingUI(speed=0) {
 }
 
 async function openCity(fromCover=false) {
-  if(guided || (!campaignDone && !fromCover) || roaming || !loaded) return;
+  if(guided || (!campaignDone && !fromCover && !managing) || roaming || !loaded) return;
   const now=++transition;
   keys.clear();
   $('advance').disabled=true;
@@ -651,6 +665,9 @@ async function openCity(fromCover=false) {
   try {
     await city.openDistrict();
     if(now!==transition) return;
+    if(managing) director.close();
+    managing=false;
+    experience.classList.remove('management');
     roaming=true;driving=false;
     coverOpen=false;
     $('cover').hidden=true;
@@ -659,6 +676,7 @@ async function openCity(fromCover=false) {
     document.querySelector('.top-actions').hidden=false;
     $('story-toggle').hidden=false;
     $('map-toggle').hidden=index<0;
+    $('manage-toggle').hidden=false;
     $('city-toggle').hidden=true;
     voice.stop();
     $('waypoint').hidden=true;
@@ -669,12 +687,48 @@ async function openCity(fromCover=false) {
     updateDrivingUI();
     showNotice('');
   } catch {
+    console.warn(error);
     showNotice('The district could not load. Try City streets again.');
     if(fromCover) $('loader').textContent='The district could not load. Try Free roam again.';
     $('advance').disabled=false;
   } finally {
     $('city-toggle').disabled=false;
     $('free-start').disabled=false;
+  }
+}
+
+async function openManagement() {
+  if(!loaded || managing) return;
+  const version=++transition;
+  const start=$('manage-start');
+  const switcher=$('manage-toggle');
+  start.disabled=true;switcher.disabled=true;
+  if(coverOpen) $('loader').textContent='Opening the development sites…';
+  showNotice('Opening the development sites…');
+  try {
+    if(driving) city.stopDrive();
+    await city.openDirector();
+    if(version!==transition) return;
+    voice.stop();
+    keys.clear();
+    approaching=false;
+    roaming=false;driving=false;managing=true;guided=false;coverOpen=false;
+    experience.classList.remove('guided');
+    experience.classList.add('management');
+    $('cover').hidden=true;$('panel').hidden=true;$('roam').hidden=true;$('waypoint').hidden=true;
+    $('controls').hidden=true;$('touch').hidden=true;
+    document.querySelector('.top-actions').hidden=false;
+    $('cast-toggle').hidden=true;$('story-toggle').hidden=false;
+    $('city-toggle').hidden=false;$('map-toggle').hidden=true;
+    switcher.hidden=true;
+    director.open();
+    showNotice('');
+  } catch(error) {
+    console.warn(error);
+    showNotice('The development sites could not load. Try again.');
+    if(coverOpen) $('loader').textContent='The development sites could not load. Try again.';
+  } finally {
+    start.disabled=false;switcher.disabled=false;
   }
 }
 
@@ -704,6 +758,7 @@ window.addEventListener('keydown',event => {
   if (coverOpen || $('cast-dialog').open || event.altKey || event.metaKey || event.ctrlKey || event.target.closest?.('input,textarea,select')) return;
   if (event.code === 'KeyE' && !event.repeat) {
     if (roaming) toggleVehicle();
+    else if(managing) return;
     else if ($('panel-body').hidden) showPanel(true);
     else advance(false);
   }
@@ -760,9 +815,14 @@ function frame(now) {
     }
   } else if (!coverOpen) {
     city.animate(delta);
+    if(managing) {
+      director.step(now);
+      $('controls').hidden=!director.onFoot;
+      $('touch').hidden=!director.onFoot;
+    }
     const stop = stops[index];
     const encounter = encounters[stop?.id];
-    if (!roaming && encounter && !chapter.met(stop.id)) {
+    if (!managing && !roaming && encounter && !chapter.met(stop.id)) {
       if (approaching) {
         if (city.distanceTo(encounter.position) <= interactRadius) {
           meet();
@@ -791,7 +851,7 @@ function frame(now) {
     const right = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
     const turn = Number(keys.has('ArrowRight')) - Number(keys.has('ArrowLeft'));
     if (turn) city.turn(turn * delta * 320,0);
-    if (forward || right) city.walk(right,forward,delta);
+    if ((forward || right) && (!managing || director.onFoot)) city.walk(right,forward,delta);
   }
   if (now-lastDraw > 1000/35) {
     city.draw();
@@ -810,11 +870,12 @@ async function start() {
     loaded = true;
     $('enter').disabled = false;
     $('free-start').disabled = false;
-    $('enter').textContent = 'Enter SECHA City';
+    $('manage-start').disabled=false;
+    $('manage-start').textContent='Run Central City';
     $('loader').textContent = 'Walk with the keyboard or touch controls.';
   } catch (error) {
     console.warn(error);
-    $('enter').textContent = '3D city unavailable';
+    $('manage-start').textContent = '3D city unavailable';
     sceneIssue();
   }
 }

@@ -102,3 +102,26 @@ for(const clip of Object.values(voiceManifest.clips)) {
   assert.ok((await readFile(new URL(clip,dist))).length>1000);
 }
 console.log('Commission budget, city routing, driving, expanded models and optional HeyGen audio passed.');
+
+const { freshCity,hire,beginPavilion,availableWorkers,simulate,furnish,openPavilion }=await import('../city-operations.js');
+const city=freshCity();
+assert.equal(hire(city,'Rani','builder'),'');
+assert.equal(city.credits,1090);
+assert.equal(beginPavilion(city,'pandan','materials','eps','crew-1',1000),'');
+assert.equal(beginPavilion(city,'maker','living','oak','crew-1',1000),'Assign an available worker to build.');
+assert.equal(availableWorkers(city).length,1);
+assert.equal(simulate(city,6251),true);
+assert.equal(city.plots.pandan.phase,'built');
+assert.equal(availableWorkers(city).length,2);
+assert.equal(furnish(city,'pandan','lounge'),'');
+assert.equal(openPavilion(city,'pandan',6252),'');
+assert.equal(city.visitors,3);
+const initial=city.credits;
+assert.equal(simulate(city,21252),true);
+assert.equal(city.credits,initial+44);
+assert.equal(city.visitors,6);
+assert.ok((await readFile(new URL('basis/basis_transcoder.wasm',dist))).length>100000);
+const {default:capture}=await import('../captured-walk.js');
+assert.ok(capture.rate>1 && capture.rate<2);
+assert.ok(capture.clip.tracks.some(track=>track.name==='calf_l.quaternion'));
+console.log('Director operations, captured walk and street texture decoder passed.');

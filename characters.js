@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { clone } from 'three/addons/utils/SkeletonUtils.js';
 import { addJosephineFringe } from './character-hair.js';
+import captured from './captured-walk.js';
 
 export const encounters = {
-  arrival: {name:'Josephine', role:'Founder and maker', actor:'josephine', position:[.9,.10,33.1], from:[-.25,.10,33.35], prompt:'Find Josephine outside reception.', line:'I grew up watching my mother run our renovations. She always knew where people would stop and where they needed room to pass. I’d like you to make a room with her in mind.'},
-  garden: {name:'Dina', role:'Studio designer', actor:'dina', position:[-5.9,.09,22.18], from:[-4.9,.09,22.18], prompt:'Meet Dina on the garden path.', line:'Hold on a moment. The leaves move differently here. Brush the pandan and listen under the trees before you pick anything for the room.'},
-  worktable: {name:'Josephine', role:'Founder and maker', actor:'josephine', position:[-1.83,.29,-4.28], from:[-1.55,.29,-4.66], prompt:'Meet Josephine beside the worktable.', line:'The timber goes where her hands will land. Pick the finish you want her to feel as she comes into the room.'},
-  wayang: {name:'Dina', role:'Studio designer', actor:'dina', position:[9.47,.33,-3.81], from:[9.6,.33,-4.54], prompt:'Meet Dina by the wayang panel.', line:'I’ve left four stages of the wall here. Look at the shapes before the light goes on. Once it does, notice which edges come forward.'},
-  tea: {name:'Ibu', role:'Your guest', actor:'ibu', position:[-28.6,.21,15.39], from:[-28.6,.21,14.61], prompt:'Find Ibu on the tea terrace.', line:'I can wait here while you finish. Were you thinking of jasmine, or ginger with a little palm sugar?'},
+  arrival: {name:'Josephine', role:'Founder and maker', actor:'josephine', position:[.9,.10,33.1], from:[-.25,.10,33.35], prompt:'Find Josephine outside reception.', line:'Central City gives each pavilion a design question. Before you build the district, try one room with my mother in mind. I learnt renovation by watching where she made room for people to stop and talk.'},
+  garden: {name:'Dina', role:'Studio designer', actor:'dina', position:[-5.9,.09,22.18], from:[-4.9,.09,22.18], prompt:'Meet Dina on the garden path.', line:'This part of the garden is our test for Pandan Walk. Brush the pandan, then notice where the canopy changes the sound.'},
+  worktable: {name:'Josephine', role:'Founder and maker', actor:'josephine', position:[-1.83,.29,-4.28], from:[-1.55,.29,-4.66], prompt:'Meet Josephine beside the worktable.', line:'The same timber can feel different in a small room and in a public pavilion. Choose what you want someone to feel when they reach for this screen.'},
+  wayang: {name:'Dina', role:'Studio designer', actor:'dina', position:[9.47,.33,-3.81], from:[9.6,.33,-4.54], prompt:'Meet Dina by the wayang panel.', line:'This is the prototype for the Wayang Gallery. Try all four stages, then see which cut edges appear when the light goes on.'},
+  tea: {name:'Ibu', role:'Your guest', actor:'ibu', position:[-28.6,.21,15.39], from:[-28.6,.21,14.61], prompt:'Find Ibu on the tea terrace.', line:'A city needs a place to pause. What would you offer someone arriving from the garden. Jasmine, or ginger with palm sugar?'},
   library: {name:'Dina', role:'Studio designer', actor:'dina', position:[31,.31,2.5],from:[32,.31,2.3],prompt:'Meet Dina at the Material Library.',line:'A client needs a quiet guest room. You have 850 SECHA credits. Choose a timber, a divider and a light setting before we install it.'},
   commission: {name:'Josephine', role:'Founder and maker', actor:'josephine', position:[9.27,.33,12.89],from:[9.38,.33,12.2],prompt:'Meet Josephine in the installed room.',line:'Take a walk around what you ordered. Check how the slats and the light work together before we open the studio.'},
   courtyard: {name:'Dina', role:'Studio designer', actor:'dina', position:[13.6,.08,29.75],from:[14.6,.08,29.75],prompt:'Meet Dina at the Listening Court.',line:'Guests are coming. Choose the light you want them to arrive in, then meet me in the salon.'},
@@ -83,7 +84,16 @@ export function createCast(scene, loadAsset) {
       scene.add(root);
       const mixer = new THREE.AnimationMixer(body);
       const idleClip = animations.find(clip => /idle/i.test(clip.name));
-      const walkClip = animations.find(clip => /walk_relaxed|^walk$/i.test(clip.name));
+      const authentic=lookKey==='visitor' ? null : THREE.AnimationClip.parse(captured.clip);
+      if(authentic && idleClip) {
+        const used=new Set(authentic.tracks.map(track=>track.name));
+        for(const track of idleClip.tracks) {
+          if(used.has(track.name)) continue;
+          const fixed=[...track.values.slice(0,track.getValueSize())];
+          authentic.tracks.push(new track.constructor(track.name,[0,authentic.duration],[...fixed,...fixed]));
+        }
+      }
+      const walkClip = authentic || animations.find(clip => /^walk$/i.test(clip.name));
       const clips={idle:idleClip && mixer.clipAction(idleClip),walk:walkClip && mixer.clipAction(walkClip)};
       const shadow = new THREE.Mesh(new THREE.CircleGeometry(.29,24),new THREE.MeshBasicMaterial({color:'#33261b',transparent:true,opacity:.22,depthWrite:false}));
       shadow.rotation.x=-Math.PI/2;
@@ -95,7 +105,7 @@ export function createCast(scene, loadAsset) {
         lower:body.getObjectByName('lowerarm_' + side),
         sign:side === 'l' ? 1 : -1,
       })).filter(arm => arm.upper && arm.lower);
-      return {root,body,mixer,clips,arms,mode:null,waypoint:null,pace:0};
+      return {root,body,mixer,clips,arms,mode:null,waypoint:null,pace:0,walkRate:authentic ? captured.rate*look.scale : followRate};
     }).catch(error => {actors.delete(key);throw error;});
     actors.set(key,pending);
     return pending;
@@ -145,7 +155,7 @@ export function createCast(scene, loadAsset) {
     if (direction.lengthSq() < .0001) return;
     const angle=Math.atan2(direction.x,direction.z);
     const step=Math.atan2(Math.sin(angle-actor.root.rotation.y),Math.cos(angle-actor.root.rotation.y));
-    actor.root.rotation.y += step * Math.min(1,delta*8);
+    if (Math.abs(step)>.055) actor.root.rotation.y += Math.sign(step)*Math.min(Math.abs(step),delta*2.2);
   }
 
   function relaxArms(actor) {
@@ -176,14 +186,14 @@ export function createCast(scene, loadAsset) {
         face(actor,cameraDirection,delta);
         const targetRate = followRate * THREE.MathUtils.smoothstep(remaining,.012,.44);
         actor.pace += (Math.max(.14,targetRate)-actor.pace)*Math.min(1,delta*6);
-        actor.clips.walk?.setEffectiveTimeScale(THREE.MathUtils.clamp(actor.pace/followRate,.32,1.08));
+        actor.clips.walk?.setEffectiveTimeScale(THREE.MathUtils.clamp(actor.pace/actor.walkRate,.1,1.08));
         at.addScaledVector(cameraDirection.normalize(),Math.min(actor.pace*delta,remaining));
       } else {
         animation(actor,'idle');
         if (actor===active) face(actor,cameraDirection.copy(camera.position).sub(at),delta*.7);
       }
       actor.mixer.update(delta);
-      if (actor.arms.length) relaxArms(actor);
+      if (actor.arms.length && actor.mode==='idle') relaxArms(actor);
       animated = true;
     }
     return animated;
@@ -200,14 +210,15 @@ export function createCast(scene, loadAsset) {
   }
 
   let personNumber=0;
-  async function addPerson(name,kind,position,camera,stop) {
+  async function addPerson(name,kind,position,camera,stop,from) {
     const id='extra-' + (++personNumber);
     const actor=await getActor(id,kind==='visitor' ? 'visitor' : 'guest');
     actor.root.position.copy(position);
     const diff=camera.position.clone().sub(position);
     actor.root.rotation.y=Math.atan2(diff.x,diff.z);
     actor.root.visible=stop===area;
-    animation(actor,'idle');
+    if(from && actor.root.visible) place(actor,from,position.toArray());
+    else animation(actor,'idle');
     placed.set(id,{name,actor,area:stop});
     return id;
   }

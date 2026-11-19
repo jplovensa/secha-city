@@ -15,6 +15,7 @@
       <div class="brand"><img class="brand-mark" src="%BASE_URL%secha-logo.png" alt=""><span>SECHA <b>CITY</b><small>THE HOUSE OF FIVE SENSES</small></span></div>
       <div class="top-actions" hidden>
         <button id="sound" type="button" aria-pressed="false" hidden>Voices off</button>
+        <button id="manage-toggle" type="button" hidden>City builder</button>
         <button id="cast-toggle" type="button">Cast</button>
         <button id="city-toggle" type="button" hidden>City streets</button>
         <button id="story-toggle" type="button" hidden>Story</button>
@@ -23,12 +24,13 @@
     </header>
     <section id="cover" class="cover" aria-labelledby="cover-title">
       <div class="cover-inner">
-        <p class="eyebrow">SECHA City <span></span> Story campaign</p>
-        <h1 id="cover-title">A house for<br>the <em>senses.</em></h1>
-        <p>Meet Josephine, design a room, take on a renovation commission, and open your studio in a city you can explore on foot or by car.</p>
-        <button id="enter" class="primary" type="button" disabled>Preparing the city…</button>
+        <p class="eyebrow">SECHA City <span></span> Interior district</p>
+        <h1 id="cover-title">Central<br><em>City.</em></h1>
+        <p>Build a city around interiors and materials. Hire a crew, develop four sites, furnish your pavilions and open them to visitors.</p>
+        <button id="manage-start" class="primary" type="button" disabled>Preparing the city…</button>
         <small id="loader" role="status">Opening the garden and reception.</small>
-        <button id="free-start" class="soft" type="button" disabled>Free roam</button>
+        <button id="enter" class="soft" type="button" disabled>Story missions</button>
+        <button id="free-start" class="soft" type="button" disabled>Walk the streets</button>
         <button id="guided" class="soft" type="button">Read the guided edition</button>
       </div>
     </section>
@@ -44,6 +46,7 @@
       <p id="cast-status" role="status"></p>
       <ul id="cast-list"></ul>
     </dialog>
+    <section id="director" class="panel director" aria-labelledby="director-title" hidden></section>
     <section id="roam" class="panel" aria-labelledby="roam-title" hidden>
       <p class="eyebrow">Free roam</p><h2 id="roam-title">City streets</h2>
       <p id="road-task">Drive the perimeter and visit three city landmarks.</p>
