@@ -14,6 +14,7 @@ export function createCity(canvas, onIssue) {
   renderer.toneMappingExposure = 1.18;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
+  let dirty = true;
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#d8c9ae');
   scene.fog = new THREE.FogExp2('#d8c9ae', .016);
@@ -34,9 +35,9 @@ export function createCity(canvas, onIssue) {
     return light;
   }
 
-  const galleryLights = [4.5, 7.6, 10.6].map(x => lamp('#ffd39e', 10, 6, [x,7.87,2.67]));
+  const galleryLights = [4.5, 7.6, 10.6].map(x => lamp('#ffd39e', 0, 3.8, [x,9.12,2.57]));
   lamp('#ffe0b4', 14, 9, [-3.0, 4.2, 3.0]);
-  lamp('#ffd6a4', 10, 7, [7.2,-8.72,2.86]);
+  lamp('#ffd6a4', 4, 7, [7.2,-8.72,2.86]);
   const partitionLight = lamp('#ffdbac', 21, 8.5, [10.6,-8.6,2.3]);
 
   const wayang = Object.fromEntries(['WayangDrawing','WayangBlank','WayangCarving','WayangLight'].map(name => [name, []]));
@@ -97,12 +98,13 @@ export function createCity(canvas, onIssue) {
   let currentStage = 3;
   function setStage(stage) {
     currentStage = stage;
+    dirty = true;
     for (const [label, nodes] of Object.entries(wayang)) {
       const on = label === 'WayangDrawing' ? stage === 0 : label === 'WayangBlank' ? stage === 1
         : label === 'WayangCarving' ? stage >= 2 : stage === 3;
       for (const node of nodes) node.visible = on;
     }
-    for (const light of galleryLights) light.intensity = stage === 3 ? 15 : 0;
+    for (const light of galleryLights) light.intensity = stage === 3 ? 2.6 : 0;
   }
 
   const screen = new THREE.Group();
@@ -129,6 +131,7 @@ export function createCity(canvas, onIssue) {
   let lastSpacing;
   let slats = [];
   function setDesign(design) {
+    dirty = true;
     screen.visible = true;
     wood.color.set(finishes[design.finish].color);
     if (lastSpacing !== design.spacing) {
@@ -155,7 +158,7 @@ export function createCity(canvas, onIssue) {
       lastSpacing = design.spacing;
     }
     const t = design.light / 100;
-    partitionLight.intensity = 3 + 58 * t;
+    partitionLight.intensity = 3 + 40 * t;
     partitionLight.color.set('#ffd099').lerp(new THREE.Color('#f8e4bf'), t);
     stripeMaterial.opacity = .04 + .28 * t;
   }
@@ -163,6 +166,7 @@ export function createCity(canvas, onIssue) {
   let yaw = 0;
   let pitch = 0;
   function lookFrom(eye, target) {
+    dirty = true;
     camera.position.copy(worldPoint(eye));
     camera.lookAt(worldPoint(target));
     yaw = camera.rotation.y;
@@ -170,6 +174,7 @@ export function createCity(canvas, onIssue) {
   }
 
   function turn(dx,dy) {
+    dirty = true;
     yaw -= dx * .004;
     pitch = THREE.MathUtils.clamp(pitch - dy * .004, -.86, .75);
     camera.rotation.set(pitch,yaw,0,'YXZ');
@@ -214,17 +219,28 @@ export function createCity(canvas, onIssue) {
     const insideReception = x > -6.5 && x < 6.5 && z > 24.5 && z < 32;
     const insideCafe = x > -35.5 && x < -22.5 && z > 1.5 && z < 17.8;
     const eyeHeight = insideQuarter ? 1.94 : insideReception || insideCafe ? 1.82 : 1.68;
-    camera.position.y = THREE.MathUtils.lerp(camera.position.y,eyeHeight,Math.min(1,time * 4));
-    return oldX !== x || oldZ !== z;
+    const y = THREE.MathUtils.lerp(camera.position.y,eyeHeight,Math.min(1,time * 4));
+    const moved = oldX !== x || oldZ !== z;
+    if (moved || Math.abs(camera.position.y - y) > .0001) dirty = true;
+    camera.position.y = y;
+    return moved;
   }
 
   function resize() {
+    dirty = true;
     camera.aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+    camera.fov = camera.aspect < .7 ? 74 : 56;
     camera.updateProjectionMatrix();
     renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
   }
   new ResizeObserver(resize).observe(canvas);
   resize();
   canvas.addEventListener('webglcontextlost',event => {event.preventDefault();onIssue();});
-  return { load, lookFrom, turn, walk, setStage, setDesign, draw: () => renderer.render(scene,camera) };
+  function draw() {
+    if (!dirty) return;
+    renderer.render(scene,camera);
+    dirty = false;
+  }
+
+  return { load, lookFrom, turn, walk, setStage, setDesign, draw };
 }
