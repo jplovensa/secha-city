@@ -33,7 +33,7 @@ export function createPavilions(scene,textureLoader,studyURL,addSolids,removeSol
     return hit;
   }
 
-  function placeAsset(container,pattern,x,z,yaw=0) {
+  function placeAsset(container,pattern,x,z,yaw=0,scale=1) {
     const source=sourcePiece(pattern);
     if(!source) return false;
     source.updateWorldMatrix(true,true);
@@ -47,6 +47,7 @@ export function createPavilions(scene,textureLoader,studyURL,addSolids,removeSol
     copy.matrix.premultiply(translate);
     const mount=new THREE.Group();mount.name='Pavilion furniture';
     mount.rotation.y=yaw;
+    mount.scale.setScalar(scale);
     mount.position.set(x,.194,z);
     mount.add(copy);container.add(mount);
     return true;
@@ -59,7 +60,7 @@ export function createPavilions(scene,textureLoader,studyURL,addSolids,removeSol
       placeAsset(container,/Forest.archive.curved.designer.chair/i,1.8,.5,.46);
     } else {
       const work=kit==='atelier';
-      placeAsset(container,work ? /Kenwood.*oak.dining.table/i : /Scovato.*travertine.coffee.table/i,0,-.24,0);
+      placeAsset(container,work ? /Kenwood.*oak.dining.table/i : /Forest.archive.curved.occasional.table/i,0,-.24,0,work?1:1.22);
       for(const side of [-1,1]){
         placeAsset(container,/Forest.archive.curved.designer.chair/i,side*(work?2.07:1.5),-.13,-side*1.04);
       }

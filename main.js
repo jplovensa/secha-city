@@ -535,6 +535,7 @@ function refreshVoiceControls() {
   $('play-voice').hidden = !voice.has(voiceKey());
   $('sound').textContent = voice.enabled ? 'Voices on' : 'Voices off';
   $('sound').setAttribute('aria-pressed',String(voice.enabled));
+  $('sound').dataset.speaking=String(voice.speaking());
   $('play-voice').textContent = voice.isPlaying() ? 'Stop voice' : 'Play voice';
 }
 
@@ -717,6 +718,7 @@ async function openManagement() {
     experience.classList.add('management');
     $('cover').hidden=true;$('panel').hidden=true;$('roam').hidden=true;$('waypoint').hidden=true;
     $('controls').hidden=true;$('touch').hidden=true;
+    $('controls').innerHTML='<b>W A S D</b> Walk <span>·</span> Drag to look';
     document.querySelector('.top-actions').hidden=false;
     $('cast-toggle').hidden=true;$('story-toggle').hidden=false;
     $('city-toggle').hidden=false;$('map-toggle').hidden=true;
@@ -882,7 +884,7 @@ async function start() {
     $('free-start').disabled = false;
     $('manage-start').disabled=false;
     $('manage-start').textContent='Run Central City';
-    $('loader').textContent = 'Walk with the keyboard or touch controls.';
+    $('loader').textContent = 'Choose a plot to start building.';
   } catch (error) {
     console.warn(error);
     $('manage-start').textContent = '3D city unavailable';

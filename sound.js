@@ -3,6 +3,7 @@ export function makeVoice(player, baseURL) {
   let activeKey='';
   let clips={};
   let utterance=null;
+  let started=false;
   const synth=window.speechSynthesis;
   const storageKey='secha-city-voices-v1';
   const relativeURL=path=>new URL(baseURL+path,document.baseURI).href;
@@ -30,6 +31,7 @@ export function makeVoice(player, baseURL) {
   function stop() {
     const hadSpeech=Boolean(utterance);
     utterance=null;
+    started=false;
     activeKey='';
     if(hadSpeech) synth.cancel();
     player.pause();
@@ -37,7 +39,7 @@ export function makeVoice(player, baseURL) {
   }
 
   const names={
-    josephine:['Google UK English Female','Serena','Karen','Samantha'],
+    josephine:['Serena','Karen','Samantha','Google UK English Female'],
     dina:['Samantha','Google US English','Sandy (English (US))','Karen'],
     ibu:['Grandma (English (UK))','Moira','Google UK English Female','Samantha'],
   };
@@ -73,12 +75,13 @@ export function makeVoice(player, baseURL) {
     const clear=()=>{
       if(utterance!==line) return;
       utterance=null;
+      started=false;
       activeKey='';
       onChange();
     };
     line.onend=clear;
     line.onerror=clear;
-    line.onstart=onChange;
+    line.onstart=()=>{started=true;onChange();};
     synth.speak(line);
     return true;
   }
@@ -86,5 +89,6 @@ export function makeVoice(player, baseURL) {
   return { get enabled(){return enabled;},setEnabled,play,stop,load,
     has:key=>Boolean(key && (synth || Object.hasOwn(clips,key))),
     get available(){return Boolean(synth)||Object.keys(clips).length>0;},
+    speaking:()=>Boolean(started || (activeKey && !player.paused && !player.ended)),
     isPlaying:()=>Boolean(utterance || (activeKey && !player.paused && !player.ended)) };
 }
