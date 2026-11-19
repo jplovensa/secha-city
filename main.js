@@ -894,6 +894,7 @@ async function start() {
     $('enter').disabled = false;
     $('renovation-start').disabled = false;
     $('free-start').disabled = false;
+    $('drive-start').disabled = false;
     $('manage-start').disabled=false;
     $('manage-start').textContent='Run Central City';
     $('loader').textContent = 'Walk with WASD or the on-screen arrows. Drag to look.';
