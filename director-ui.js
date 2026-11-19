@@ -13,7 +13,7 @@ const element=(tag, text, name)=>{
   return node;
 };
 
-export function makeDirector(panel,scene,speak,hasSpeech){
+export function makeDirector(panel,scene){
   const state=readCity(localStorage);
   let selected=plots[0].id;
   let shown=false;
@@ -77,9 +77,6 @@ export function makeDirector(panel,scene,speak,hasSpeech){
     title.id='director-title';
     const brief=element('p',report);
     intro.append(stamp,title,brief);
-    if(hasSpeech()) intro.append(buttons('Hear Josephine’s brief',()=>{
-      speak('director-brief','Welcome to SECHA Central City. Every pavilion will show visitors a different way to live with materials. '+report+(site ? '' : ' Start by choosing a design and assigning one of your workers.'),'josephine');
-    },'soft'));
     panel.append(intro);
 
     const ledger=element('div',null,'city-ledger');

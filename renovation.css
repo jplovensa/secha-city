@@ -1,0 +1,73 @@
+.renovation-panel.panel {
+  left:auto;
+  right:clamp(14px,3.8vw,62px);
+  bottom:max(55px,env(safe-area-inset-bottom));
+  width:min(445px,calc(100% - 28px));
+  max-height:calc(100% - 135px);
+  background:#29251cf7;
+  scrollbar-color:#a88b67 #29251c;
+  overscroll-behavior:contain;
+}
+.renovation-panel h2:focus {outline:none}
+.renovation-panel p {font-size:.84rem;line-height:1.5;margin:10px 0}
+.renovation-panel .eyebrow {font-size:.64rem;line-height:1.2;margin:0}
+.renovation-panel .renovation-header {align-items:flex-start}
+.renovation-context {
+  display:flex;flex-wrap:wrap;gap:3px 14px;
+  padding-top:10px;margin-top:12px;border-top:1px solid var(--line);
+  color:#f7e1c5;font-size:.76rem;
+}
+.renovation-illustrative {display:block;font-size:.7rem;color:#decbb4;margin-top:5px}
+.renovation-actions,.renovation-footer {display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.renovation-footer button,.renovation-actions button {min-height:40px}
+.renovation-panel .renovation-owner {
+  border-left:2px solid #d7b78a;padding:5px 8px;background:#dec09614;
+  color:#f4e4ce;font-size:.77rem;
+}
+.renovation-owner b {display:block;color:var(--accent)}
+.renovation-panel .renovation-feedback {font-size:.78rem;color:var(--accent)}
+.renovation-feedback:empty {display:none}
+.renovation-panel fieldset {min-width:0;border:0;padding:0;margin:12px 0 6px;display:grid;gap:5px}
+.renovation-panel legend {
+  margin-bottom:5px;padding:0;font-size:.78rem;font-weight:700;color:#edcfaa;
+}
+.renovation-choice {
+  display:grid;grid-template-columns:19px 1fr;gap:7px;align-items:start;
+  border:1px solid var(--line);border-radius:7px;padding:8px;
+  cursor:pointer;font-size:.8rem;
+}
+.renovation-choice:has(:checked) {background:#d9b98922;border-color:#dcb88b}
+.renovation-choice input {accent-color:#e5c69c;margin:1px 0 0}
+.renovation-choice small {display:block;line-height:1.4;margin-top:4px;font-size:.74rem;color:#edddc9}
+.renovation-estimate {margin:10px 0 0}
+.renovation-estimate div,.renovation-schedule li {
+  display:grid;grid-template-columns:1fr auto;gap:3px 12px;border-bottom:1px solid var(--line);
+  padding:5px 0;font-size:.74rem;line-height:1.4;align-items:start;
+}
+.renovation-estimate dd {margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.renovation-schedule {list-style:none;padding:0;margin:10px 0}
+.renovation-schedule b {font-weight:500}
+.renovation-schedule span {text-align:right;color:#e6cda9}
+.renovation-panel .renovation-target {font-size:.76rem;color:#dcdfb2}
+.renovation-panel .renovation-target[data-missed=true] {color:#ffd0b2}
+.renovation-panel .renovation-change {font-weight:700;color:#f0d1aa}
+#renovation-brief {
+  white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55;
+  font:inherit;font-size:.83rem;line-height:1.55;margin:10px 0;
+  padding:10px 12px;color:#fff4e1;background:#1f1e17;border-radius:7px;
+}
+#experience.renovating.guided .renovation-panel {max-height:calc(100% - 96px)}
+.renovating #touch {bottom:max(13px,env(safe-area-inset-bottom))}
+@media (pointer:coarse) and (min-width:651px) {
+  .renovation-panel.panel {bottom:121px;max-height:calc(100% - 200px)}
+}
+@media (max-width:650px) {
+  #experience.renovating .renovation-panel:not([hidden]) {
+    top:58px;bottom:auto;left:14px;right:14px;transform:none;
+    width:auto;max-height:64dvh;
+  }
+  #experience.renovating.guided .renovation-panel:not([hidden]) {max-height:calc(100% - 78px)}
+  .renovation-panel[data-step="walk"] {max-width:325px}
+  .renovation-footer button,.renovation-actions button {min-height:44px}
+  .renovating .waypoint {z-index:3}
+}

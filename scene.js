@@ -5,7 +5,8 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { dividerLayout, finishes } from './chapter.js';
 import { createCast, encounters } from './characters.js';
 import { applyFurnitureLayout } from './layout.js';
-import { driveStep, routeCheckpoints } from './traffic.js';
+import { addStreetscape } from './streetscape.js';
+import { driveStep, roadDistance, roadHalfWidth, roadLength, roadPoint, routeCheckpoints } from './traffic.js';
 import { createPavilions } from './pavilions.js';
 import { plots } from './city-operations.js';
 
@@ -145,7 +146,7 @@ export function createCity(canvas, onIssue) {
   let slats = [];
   function setDesign(design) {
     dirty = true;
-    screen.visible = true;
+    screen.visible = design.showScreen ?? true;
     wood.color.set(finishes[design.finish].color);
     if (lastSpacing !== design.spacing) {
       for (const slat of slats) screen.remove(slat);
@@ -174,6 +175,13 @@ export function createCity(canvas, onIssue) {
     partitionLight.intensity = 3 + 40 * t;
     partitionLight.color.set('#ffd099').lerp(new THREE.Color('#f8e4bf'), t);
     stripeMaterial.opacity = .04 + .28 * t;
+  }
+
+  function clearDesign() {
+    screen.visible = false;
+    partitionLight.intensity = 21;
+    partitionLight.color.set('#ffdbac');
+    dirty = true;
   }
 
   let yaw = 0;
@@ -394,25 +402,47 @@ export function createCity(canvas, onIssue) {
 
   let roadCar;
   let roadSetup;
-  let car={x:-3,z:42,yaw:Math.PI/2,speed:0};
+  const parked={x:-3,z:42,yaw:Math.PI/2,speed:0};
+  let car={...parked};
   let wheels=[];
   let driving=false;
   let checkpoints=[];
   let currentCheckpoint=0;
-  const roadHeight=.134;
-  function stripe(x,z,width,depth,material,y=roadHeight) {
-    const flat=new THREE.Mesh(new THREE.PlaneGeometry(width,depth),material);
-    flat.rotation.x=-Math.PI/2;
-    flat.position.set(x,y,z);
-    scene.add(flat);
+  // Keep the paving above the site boundary planting slab in arrival.glb.
+  const roadHeight=.18;
+  function roadRibbon(material, start, length, halfWidth, offset, height, segments) {
+    const vertices = [];
+    const indices = [];
+    for (let i = 0; i <= segments; i++) {
+      const {x,z,nx,nz} = roadPoint(start + length*i/segments);
+      vertices.push(x + nx*(offset-halfWidth),height,z + nz*(offset-halfWidth));
+      vertices.push(x + nx*(offset+halfWidth),height,z + nz*(offset+halfWidth));
+      if (i < segments) indices.push(2*i,2*i+1,2*i+2,2*i+1,2*i+3,2*i+2);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    scene.add(new THREE.Mesh(geometry,material));
   }
 
-  function clearRoadTrees() {
+  function clearRoadLandscape() {
+    // These five authored berms extend onto the perimeter drive.
+    const bermOffsets = {
+      6:[-9.2,0], 7:[6,0], 8:[0,-6], 9:[4.8,0], 10:[-6,5],
+    };
     arrivalScene?.traverse(tree=>{
+      const berm = tree.name.match(/^Soft[ _]planted[ _]berm[ _](\d+)$/i);
+      if (berm && bermOffsets[berm[1]]) {
+        const [dx,dz] = bermOffsets[berm[1]];
+        const at = tree.getWorldPosition(new THREE.Vector3());
+        at.x += dx;
+        at.z += dz;
+        tree.position.copy(tree.parent.worldToLocal(at));
+      }
       if (!/Terminalia.*tropical.almond/i.test(tree.name)) return;
       const at=tree.getWorldPosition(new THREE.Vector3());
-      const edge=Math.max(Math.abs(at.x),Math.abs(at.z));
-      if(edge<38 || edge>46) return;
+      if(Math.abs(roadDistance(at.x,at.z)) > roadHalfWidth + 1) return;
       if(Math.abs(at.x)>Math.abs(at.z)) at.x=Math.sign(at.x)*47.1;
       else at.z=Math.sign(at.z)*47.1;
       tree.position.copy(tree.parent.worldToLocal(at));
@@ -420,16 +450,19 @@ export function createCity(canvas, onIssue) {
   }
 
   function road() {
-    clearRoadTrees();
+    clearRoadLandscape();
     const asphalt=new THREE.MeshStandardMaterial({color:'#57554f',roughness:.99});
     const paint=new THREE.MeshStandardMaterial({color:'#d9c6a1',roughness:.94});
+    const sidewalk=new THREE.MeshStandardMaterial({color:'#b5a58d',roughness:.97});
+    roadRibbon(asphalt,0,roadLength,roadHalfWidth,0,roadHeight,256);
+    roadRibbon(sidewalk,0,roadLength,.84,-roadHalfWidth-.84,roadHeight+.08,256);
+    addStreetscape(scene,roadHeight+.08);
     for (const side of [-1,1]) {
-      stripe(0,42*side,92,7.2,asphalt);
-      stripe(42*side,0,7.2,76.8,asphalt);
-      for (let m=-35;m<=35;m+=5) {
-        stripe(m,42*side,2.5,.07,paint,roadHeight+.013);
-        stripe(42*side,m,.07,2.5,paint,roadHeight+.013);
-      }
+      roadRibbon(paint,0,roadLength,.042,side*(roadHalfWidth-.24),roadHeight+.012,256);
+    }
+    const dashCount = Math.round(roadLength / 5);
+    for (let i = 0; i < dashCount; i++) {
+      roadRibbon(paint,i*roadLength/dashCount,2.4,.037,0,roadHeight+.013,3);
     }
     checkpoints=routeCheckpoints.map(entry => {
       const marker=new THREE.Mesh(new THREE.TorusGeometry(1.75,.075,12,40),new THREE.MeshBasicMaterial({color:'#ffeea3'}));
@@ -441,7 +474,7 @@ export function createCity(canvas, onIssue) {
     checkpoints.forEach((marker,id)=>{marker.visible=id===currentCheckpoint;});
   }
 
-  async function openDistrict() {
+  async function openDistrict(reset = false) {
     if (!roadSetup) {
       roadSetup=Promise.all([load('district'),loader.loadAsync(asset('city-car.glb'))]).then(([,result])=>{
         roadCar=result.scene;
@@ -452,6 +485,12 @@ export function createCity(canvas, onIssue) {
       }).catch(error=>{roadSetup=null;throw error;});
     }
     await roadSetup;
+    if (reset) {
+      car={...parked};
+      currentCheckpoint=0;
+      checkpoints.forEach((marker,index)=>{marker.visible=index===0;});
+      syncCar();
+    }
     await cast.show('roam');
     placeByCar();
     dirty=true;
@@ -493,7 +532,9 @@ export function createCity(canvas, onIssue) {
       if (checkpoints[currentCheckpoint]) checkpoints[currentCheckpoint].visible=true;
     }
     dirty=true;
-    return {speed:Math.round(Math.abs(car.speed)*3.6),checkpoint:currentCheckpoint};
+    const next = routeCheckpoints[currentCheckpoint];
+    return {speed:Math.round(Math.abs(car.speed)*3.6),checkpoint:currentCheckpoint,
+      distance:next ? Math.round(Math.hypot(car.x-next.x,car.z-next.z)) : null};
   }
 
   function setMood(mood) {
@@ -528,7 +569,7 @@ export function createCity(canvas, onIssue) {
     dirty ||= animated;
   }
 
-  return { load, lookFrom, turn, walk, setStage, setDesign, draw, animate, marker, approach, distanceTo,
+  return { load, lookFrom, turn, walk, setStage, setDesign, clearDesign, draw, animate, marker, approach, distanceTo,
     preloadCast:cast.preload, showCast:cast.show, addPerson, removePerson:id=>{cast.removePerson(id);dirty=true;},
     setMood, openDistrict, beginDrive, stopDrive:placeByCar, drive, openDirector, showDevelopment, focusPlot, orbitPlot };
 

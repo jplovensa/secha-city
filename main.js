@@ -1,20 +1,17 @@
 import './style.css';
 import { defaults, finishes, stages, stops, updateDesign, dividerLayout } from './chapter.js';
-import { makeVoice } from './sound.js';
 import { createCity } from './scene.js';
 import { encounters } from './characters.js';
-import { newChapter, stageActions } from './gameplay.js';
-import { handoverCue } from './voice-cues.js';
+import { handoverLine, newChapter, stageActions } from './gameplay.js';
 import { chapterFor, chapters, commissionBudget, packages, quote } from './campaign.js';
 import { routeCheckpoints } from './traffic.js';
 import { makeDirector } from './director-ui.js';
+import { makeRenovation } from './renovation-ui.js';
 
 const $ = id => document.getElementById(id);
 const experience = $('experience');
 const canvas = $('world');
 const base = import.meta.env.BASE_URL;
-const player = $('voice-player');
-const voice = makeVoice(player,base);
 const keys = new Set();
 const senseNotes = new Map();
 const seen = new Set();
@@ -48,18 +45,60 @@ let selections = {};
 const guests = new Map();
 let nextGuestId=0;
 let loaded = false;
-const director=makeDirector($('director'),()=>city,async(key,text,actor)=>{
-  voice.setEnabled(true);
-  refreshVoiceControls();
-  try { await voice.play(key,text,actor,refreshVoiceControls); }
-  catch { showNotice('Built-in speech could not start on this device.'); }
-},()=>voice.available);
+const director=makeDirector($('director'),()=>city);
 
 try {
   design = updateDesign(defaults, JSON.parse(localStorage.getItem(storageKey) || '{}'));
 } catch {
   // Local preferences are optional when storage is unavailable.
 }
+
+function setRenovationMode(useVisual) {
+  coverOpen = false;
+  guided = !useVisual;
+  keys.clear();
+  drag = null;
+  experience.classList.add('renovating');
+  experience.classList.toggle('guided',guided);
+  document.querySelector('.top-actions').hidden = false;
+  for (const id of ['manage-toggle','cast-toggle','city-toggle','story-toggle','map-toggle','cover','panel','roam','waypoint']) $(id).hidden = true;
+  $('city-menu').hidden = false;
+  $('reticle').hidden = guided;
+  $('touch').hidden = guided;
+  $('controls').hidden = guided;
+  $('controls').innerHTML = '<b>W A S D</b> Walk <span>·</span> Drag to look <span>·</span> <b>E</b> Inspect';
+  showNotice('');
+}
+
+const renovation = makeRenovation($('renovation'),$('waypoint'),() => city,setRenovationMode,resuming => {
+  $('renovation-start').textContent = resuming ? 'Resume renovation mission' : 'Start renovation mission';
+});
+
+function startRenovation(useVisual) {
+  ++transition;
+  renovation.enter(useVisual);
+}
+
+$('renovation-start').addEventListener('click',() => startRenovation(true));
+$('renovation-guided').addEventListener('click',() => startRenovation(false));
+$('city-menu').addEventListener('click',() => {
+  if (renovation.active) renovation.leave();
+  if (driving) city.stopDrive();
+  roaming = driving = false;
+  $('roam').hidden = true;
+  coverOpen = true;
+  guided = false;
+  keys.clear();
+  drag = null;
+  experience.classList.remove('renovating','guided');
+  document.querySelector('.top-actions').hidden = true;
+  $('city-menu').hidden = true;
+  $('cover').hidden = false;
+  $('map-toggle').hidden = false;
+  $('reticle').hidden = $('touch').hidden = $('controls').hidden = true;
+  updateDrivingUI();
+  city?.lookFrom([2.35,-37.7,1.74],[-.4,-27.8,1.97]);
+});
 
 function button(text, onclick, pressed) {
   const el = document.createElement('button');
@@ -326,7 +365,6 @@ function meet() {
   if (!guided && ['wayang','teduh','commission'].includes(stop.id)) city.lookFrom(stop.eye,stop.at);
   showPanel(true);
   renderUI();
-  playCurrentVoice();
 }
 
 function renderUI() {
@@ -338,7 +376,7 @@ function renderUI() {
   const chapterNumber=chapterFor(stop.id);
   $('stop-type').textContent = handed ? 'Chapter ' + (chapterNumber+1) + ' complete' : 'Ch ' + (chapterNumber+1) + ' · ' + chapters[chapterNumber];
   $('stop-name').textContent = handed ? (stop.id==='opening' ? 'The studio is open.' : 'The room is yours.') : stop.area;
-  const verdict = handoverCue(design.spacing,design.light).text;
+  const verdict = handoverLine(design.spacing,design.light);
   $('stop-copy').textContent = handed
     ? stop.id==='opening' ? 'The opening is underway. Take the city keys and explore the district.' : 'Ibu has seen your room. Your next assignment is waiting at the Material Library.'
     : met ? stop.copy : encounter.prompt;
@@ -355,7 +393,6 @@ function renderUI() {
   renderStory();
   refreshDesign();
   renderObjective();
-  refreshVoiceControls();
   [...$('map').children].forEach((item,i) => {
     item.setAttribute('aria-current', String(i === index));
     item.disabled = !seen.has(stops[i].id);
@@ -389,9 +426,8 @@ async function go(next) {
   driving=false;
   $('roam').hidden=true;
   $('story-toggle').hidden=true;
+  $('city-menu').hidden=true;
   updateDrivingUI();
-  voice.stop();
-  refreshVoiceControls();
   approaching = false;
   $('waypoint').hidden = true;
   stopWayangPlayback();
@@ -461,11 +497,14 @@ function enableGuidedRecovery() {
 }
 
 function sceneIssue() {
-  if (!coverOpen) {
+  if (renovation.active) {
+    $('renovation-start').disabled = true;
+    renovation.recover();
+  } else if (!coverOpen) {
     showNotice('The graphics connection paused. You can continue in the guided edition.');
     enableGuidedRecovery();
   } else {
-    $('loader').textContent = 'The 3D city needs WebGL 2. You can read the guided edition below.';
+    $('loader').textContent = 'The 3D city needs WebGL 2. You can play the mission without 3D.';
   }
 }
 
@@ -503,7 +542,7 @@ function advance(assist = true) {
     if(id==='opening' && guided) {
       $('advance').disabled=true;
       $('advance').textContent='Campaign complete';
-    } else playCurrentVoice();
+    }
   } else {
     if (id==='commission') saveDesign(quote(selections).design);
     go(index+1);
@@ -522,50 +561,6 @@ $('enter').addEventListener('click', () => begin(false));
 $('guided').addEventListener('click', () => begin(true));
 $('manage-start').addEventListener('click',openManagement);
 $('manage-toggle').addEventListener('click',openManagement);
-function voiceKey() {
-  const stop = stops[index];
-  if (!stop || !chapter.met(stop.id)) return '';
-  if (!handed) return stop.id;
-  if (stop.id!=='teduh') return '';
-  return handoverCue(design.spacing,design.light).key;
-}
-
-function refreshVoiceControls() {
-  $('sound').hidden = !voice.available;
-  $('play-voice').hidden = !voice.has(voiceKey());
-  $('sound').textContent = voice.enabled ? 'Voices on' : 'Voices off';
-  $('sound').setAttribute('aria-pressed',String(voice.enabled));
-  $('sound').dataset.speaking=String(voice.speaking());
-  $('play-voice').textContent = voice.isPlaying() ? 'Stop voice' : 'Play voice';
-}
-
-async function playCurrentVoice() {
-  try {
-    if (await voice.play(voiceKey(),$('speech').textContent,encounters[stops[index]?.id]?.actor,refreshVoiceControls)) refreshVoiceControls();
-  } catch (error) {
-    const blocked = error.name === 'NotAllowedError';
-    showNotice(blocked ? 'Tap Play voice to hear the dialogue.' : 'The voice clip could not play. The dialogue is shown below.');
-    refreshVoiceControls();
-  }
-}
-
-$('sound').addEventListener('click', () => {
-  voice.setEnabled(!voice.enabled);
-  if (voice.enabled) playCurrentVoice();
-  refreshVoiceControls();
-});
-$('play-voice').addEventListener('click',() => {
-  if (voice.isPlaying()) voice.stop();
-  else {
-    voice.setEnabled(true);
-    showNotice('');
-    playCurrentVoice();
-  }
-  refreshVoiceControls();
-});
-for (const event of ['play','pause','ended']) player.addEventListener(event,refreshVoiceControls);
-refreshVoiceControls();
-voice.load().then(refreshVoiceControls);
 $('map-toggle').addEventListener('click',() => setMap($('map').hidden));
 $('panel-toggle').addEventListener('click',() => showPanel($('panel-body').hidden));
 $('advance').addEventListener('click',() => advance());
@@ -646,25 +641,30 @@ $('cast-form').addEventListener('submit',async event=>{
 
 let circuitProgress=0;
 function updateDrivingUI(speed=0) {
-  $('speedometer').hidden=!driving;
+  $('speedometer').parentElement.hidden=!driving;
   $('speedometer').textContent=speed+' km/h';
+  $('road-distance').textContent='';
   $('road-car').textContent=driving?'Get out':'Get in the car';
+  $('touch').setAttribute('aria-label',driving ? 'Driving controls' : 'Walking controls');
+  const labels = driving ? ['Accelerate','Steer left','Reverse','Steer right'] : ['Walk forward','Step left','Walk back','Step right'];
+  [...$('touch').children].forEach((control,index) => control.setAttribute('aria-label',labels[index]));
   $('controls').innerHTML=driving ? '<b>W S</b> Accelerate / reverse <span>·</span> <b>A D</b> Steer <span>·</span> <b>E</b> Exit'
     : roaming ? '<b>W A S D</b> Walk <span>·</span> Drag to look <span>·</span> <b>E</b> Get in'
     : '<b>W A S D</b> Walk <span>·</span> Drag to look <span>·</span> <b>E</b> Interact';
 }
 
-async function openCity(fromCover=false) {
+async function openCity(fromCover=false,driveNow=false) {
   if(guided || (!campaignDone && !fromCover && !managing) || roaming || !loaded) return;
   const now=++transition;
   keys.clear();
   $('advance').disabled=true;
   $('city-toggle').disabled=true;
   $('free-start').disabled=true;
+  $('drive-start').disabled=true;
   if(fromCover) $('loader').textContent='Opening the city streets…';
   showNotice('Opening the city streets…');
   try {
-    await city.openDistrict();
+    await city.openDistrict(driveNow);
     if(now!==transition) return;
     if(managing) director.close();
     managing=false;
@@ -676,18 +676,21 @@ async function openCity(fromCover=false) {
     $('touch').hidden=false;
     document.querySelector('.top-actions').hidden=false;
     $('story-toggle').hidden=false;
+    $('city-menu').hidden=false;
     $('map-toggle').hidden=index<0;
     $('manage-toggle').hidden=false;
     $('city-toggle').hidden=true;
-    voice.stop();
     $('waypoint').hidden=true;
     $('panel').hidden=true;
     $('roam').hidden=false;
     $('cast-toggle').hidden=true;
-    $('road-task').textContent=circuitProgress===3 ? 'All three landmarks visited. The city is open.' : 'Drive through the gold rings at three city landmarks.';
-    updateDrivingUI();
+    if (driveNow) {
+      circuitProgress=0;
+      toggleVehicle();
+    } else updateDrivingUI();
+    $('road-task').textContent=circuitProgress===3 ? 'All three landmarks visited. The city is open.' : 'Follow the perimeter road through three gold checkpoints.';
     showNotice('');
-  } catch {
+  } catch (error) {
     console.warn(error);
     showNotice('The district could not load. Try City streets again.');
     if(fromCover) $('loader').textContent='The district could not load. Try Free roam again.';
@@ -695,6 +698,7 @@ async function openCity(fromCover=false) {
   } finally {
     $('city-toggle').disabled=false;
     $('free-start').disabled=false;
+    $('drive-start').disabled=false;
   }
 }
 
@@ -710,7 +714,6 @@ async function openManagement() {
     if(driving) city.stopDrive();
     await city.openDirector();
     if(version!==transition) return;
-    voice.stop();
     keys.clear();
     approaching=false;
     roaming=false;driving=false;managing=true;guided=false;coverOpen=false;
@@ -720,7 +723,7 @@ async function openManagement() {
     $('controls').hidden=true;$('touch').hidden=true;
     $('controls').innerHTML='<b>W A S D</b> Walk <span>·</span> Drag to look';
     document.querySelector('.top-actions').hidden=false;
-    $('cast-toggle').hidden=true;$('story-toggle').hidden=false;
+    $('cast-toggle').hidden=true;$('story-toggle').hidden=false;$('city-menu').hidden=true;
     $('city-toggle').hidden=false;$('map-toggle').hidden=true;
     switcher.hidden=true;
     director.open();
@@ -749,6 +752,7 @@ function toggleVehicle() {
 }
 $('city-toggle').addEventListener('click',()=>openCity());
 $('free-start').addEventListener('click',()=>openCity(true));
+$('drive-start').addEventListener('click',()=>openCity(true,true));
 $('story-toggle').addEventListener('click',()=>{
   $('map-toggle').hidden=false;
   go(Math.max(index,0));
@@ -759,7 +763,8 @@ const motionKeys = new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','A
 window.addEventListener('keydown',event => {
   if (coverOpen || $('cast-dialog').open || event.altKey || event.metaKey || event.ctrlKey || event.target.closest?.('input,textarea,select')) return;
   if (event.code === 'KeyE' && !event.repeat) {
-    if (roaming) toggleVehicle();
+    if (renovation.active) renovation.interact();
+    else if (roaming) toggleVehicle();
     else if(managing) return;
     else if ($('panel-body').hidden) showPanel(true);
     else advance(false);
@@ -767,6 +772,7 @@ window.addEventListener('keydown',event => {
   if (!guided && motionKeys.has(event.code)) {
     event.preventDefault();
     approaching = false;
+    renovation.stopApproach();
     keys.add(event.code);
   }
 });
@@ -778,6 +784,7 @@ for (const control of document.querySelectorAll('[data-move]')) {
   control.addEventListener('pointerdown',event => {
     event.preventDefault();
     approaching = false;
+    renovation.stopApproach();
     control.setPointerCapture(event.pointerId);
     keys.add(code);
   });
@@ -788,6 +795,7 @@ for (const control of document.querySelectorAll('[data-move]')) {
 canvas.addEventListener('pointerdown',event => {
   if (coverOpen || guided || driving || event.button !== 0) return;
   approaching = false;
+  renovation.stopApproach();
   canvas.focus({preventScroll:true});
   canvas.setPointerCapture(event.pointerId);
   drag = {id:event.pointerId,x:event.clientX,y:event.clientY};
@@ -820,7 +828,9 @@ function frame(now) {
       $('speedometer').textContent=hud.speed+' km/h';
       circuitProgress=hud.checkpoint;
       const destination=routeCheckpoints[circuitProgress];
-      $('road-task').textContent=destination ? circuitProgress+' / 3 landmarks · Next: '+destination.name : '3 / 3 landmarks visited. The city is yours to explore.';
+      const task = destination ? circuitProgress+' / 3 landmarks · Next: '+destination.name : '3 / 3 landmarks visited. Keep driving to explore.';
+      if ($('road-task').textContent !== task) $('road-task').textContent=task;
+      $('road-distance').textContent=hud.distance === null ? 'Circuit complete' : hud.distance+' m to checkpoint';
     }
   } else if (!coverOpen) {
     city.animate(delta);
@@ -831,7 +841,7 @@ function frame(now) {
     }
     const stop = stops[index];
     const encounter = encounters[stop?.id];
-    if (!managing && !roaming && encounter && !chapter.met(stop.id)) {
+    if (!renovation.active && !managing && !roaming && encounter && !chapter.met(stop.id)) {
       if (approaching) {
         if (city.distanceTo(encounter.position) <= interactRadius) {
           meet();
@@ -859,11 +869,12 @@ function frame(now) {
     const forward = Number(keys.has('KeyW') || keys.has('ArrowUp')) - Number(keys.has('KeyS') || keys.has('ArrowDown'));
     const right = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
     const turn = Number(keys.has('ArrowRight')) - Number(keys.has('ArrowLeft'));
-    if (turn) {
+    if (turn && (!renovation.active || renovation.canWalk)) {
       if(managing && !director.onFoot) city.orbitPlot(turn*delta*320,0);
       else city.turn(turn*delta*320,0);
     }
-    if ((forward || right) && (!managing || director.onFoot)) city.walk(right,forward,delta);
+    if ((forward || right) && (!managing || director.onFoot) && (!renovation.active || renovation.canWalk)) city.walk(right,forward,delta);
+    renovation.tick(delta);
   }
   if (now-lastDraw > 1000/35) {
     city.draw();
@@ -875,16 +886,17 @@ async function start() {
   try {
     city = createCity(canvas,sceneIssue);
     city.lookFrom([2.35,-37.7,1.74],[-.4,-27.8,1.97]);
-    const readyCast=city.preloadCast();
-    await Promise.all([readyCast,city.load('arrival', event => {
+    city.preloadCast().catch(console.warn);
+    await city.load('arrival', event => {
       if (coverOpen && event.lengthComputable) $('loader').textContent = 'Opening the garden · ' + Math.round(event.loaded / event.total * 100) + '%';
-    })]);
+    });
     loaded = true;
     $('enter').disabled = false;
+    $('renovation-start').disabled = false;
     $('free-start').disabled = false;
     $('manage-start').disabled=false;
     $('manage-start').textContent='Run Central City';
-    $('loader').textContent = 'Choose a plot to start building.';
+    $('loader').textContent = 'Walk with WASD or the on-screen arrows. Drag to look.';
   } catch (error) {
     console.warn(error);
     $('manage-start').textContent = '3D city unavailable';

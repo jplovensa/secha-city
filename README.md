@@ -2,6 +2,14 @@
 
 [Play SECHA City](https://jplovensa.github.io/secha-city/)
 
+## Renovation mission
+
+Start the renovation mission from the city menu. Walk from the gallery portal into Rumah Teduh, inspect the bedroom and choose a scope and screen finish against a single IDR 30 million budget and move-in date. Approve the illustrative quote, then compare waiting, switching finishes and fitting the screen after move-in. Each option shows its cost, handover date, dependencies and next owner.
+
+Copy or download the finished brief to bring to a Studio+ consultation. The mission saves in the current browser. **Play mission without 3D** opens the same decisions and brief if WebGL is unavailable.
+
+`renovation-data.js` holds the scenario. `renovation-mission.js` calculates the quote and timeline. `renovation-ui.js` handles mission steps, room previews and brief export. Timeline lead times use calendar days and overlap room prep with procurement.
+
 ## Central City
 
 Open **Run Central City** to manage the interior district. The city starts with four vacant plots, one designer and 1,200 credits. Hire a builder or designer, choose a pavilion and shell material, assign an available worker, furnish the finished room and open it. Visitors generate revenue for the next sites. Drag over a plot to orbit it, scroll to zoom, or explore a built pavilion at eye level. City operations are saved in the current browser.
@@ -12,7 +20,7 @@ Open **Run Central City** to manage the interior district. The city starts with 
 2. **The First Commission** — choose timber, a divider and lighting within 850 SECHA credits. Compare the finished package with the original room.
 3. **Opening Night** — set the city lighting, add guests to the salon and open the studio.
 
-Choose Walk the streets from the title screen or collect the city keys at the end. The district adds the Compact Home, Family Townhouse, Garden Villa and Kitchen and Bath Lab exteriors from the SketchUp master. Drive through three rings on the perimeter road to visit the landmarks.
+Choose **Drive the city** to start behind the wheel, or **Walk the streets** to explore on foot and get into the parked car. Follow the marked perimeter through South Gate, the Material Lab and Garden Villa. The street scene reuses the Compact Home, Family Townhouse, Garden Villa and Kitchen and Bath Lab exteriors from the SketchUp master.
 
 Walk with **WASD**, drag to look, and press **E** to interact. Use **Approach** to walk up to a character automatically. In the car, **W/S** accelerate or reverse, **A/D** steer, and **E** exits. The directional buttons support touchscreens. The Cast menu places a character at a clear spot in the current room. Route returns to locations reached in the story. The guided edition offers the story and design tasks without 3D. Room design settings are saved in the browser.
 
@@ -22,9 +30,7 @@ Requires Node 22. Run `npm ci`, `npm run dev`, `npm run build`, and `npm run che
 
 For the source model export, run `tools/export_scene.py` from the SketchUp model workspace with its SketchUp SDK loader and the model path and output directory as arguments.
 
-### Dialogue audio
-
-The game uses the browser’s built-in English speech for the director brief and character dialogue. The static game also reads `public/voices.json` for optional prerecorded HeyGen dialogue. When a licensed HeyGen API key is configured in the local environment, run `node tools/render-heygen.mjs` to render the English chapter dialogue, then commit the clips and manifest. The key is used only during the local render. The player uses the recorded clip when one exists and otherwise uses a browser voice. Written dialogue is always available.
+Story dialogue appears as text. The mission’s optional Pandan Walk audio compares open air and sheltered ambience.
 
 ### Credits
 

@@ -76,7 +76,7 @@ assert.ok(11.15 + furnitureLayout.teduh[21].delta[2] - 10.76 > .9);
 console.log('Character rigs, chapter objectives and corrected furniture clearances passed.');
 
 const { quote, chapters }=await import('../campaign.js');
-const { driveStep, routeCheckpoints, onRoad }=await import('../traffic.js');
+const { driveStep, routeCheckpoints, onRoad, roadLength, roadPoint }=await import('../traffic.js');
 assert.equal(chapters.length,3);
 const over=quote({finish:'walnut',screen:'private',lighting:'daylight'});
 assert.equal(over.ready,false);
@@ -91,17 +91,38 @@ assert.ok(car.x>5 && car.speed>8);
 assert.ok(onRoad(car.x,car.z));
 assert.equal(onRoad(0,0),false);
 for(const item of routeCheckpoints) assert.ok(onRoad(item.x,item.z));
+for (let distance=0; distance<roadLength; distance+=.5) {
+  const {x,z} = roadPoint(distance);
+  assert.ok(onRoad(x,z));
+}
+car = {x:-3,z:42,yaw:Math.PI/2,speed:0};
+let checkpoint=0;
+let distance=31;
+const distanceToRoadPoint = distance => {
+  const {x,z}=roadPoint(distance);
+  return Math.hypot(car.x-x,car.z-z);
+};
+for (let tick=0; tick<1600 && distance<roadLength+31; tick++) {
+  while (distanceToRoadPoint(distance+.25)<distanceToRoadPoint(distance)) distance+=.25;
+  const target=roadPoint(distance+4);
+  const heading=Math.atan2(target.x-car.x,target.z-car.z);
+  const error=Math.atan2(Math.sin(heading-car.yaw),Math.cos(heading-car.yaw));
+  car=driveStep(car,Math.max(-1,Math.min(1,error*4)),1,.02);
+  assert.ok(onRoad(car.x,car.z));
+  const next = routeCheckpoints[checkpoint];
+  if (next && Math.hypot(car.x-next.x,car.z-next.z)<3.5) checkpoint++;
+}
+assert.equal(checkpoint,routeCheckpoints.length);
+assert.ok(distance>=roadLength+31);
+car = {x:0,z:45.23,yaw:.15,speed:2};
+for (let i=0; i<70; i++) car=driveStep(car,Number(car.yaw<Math.PI/2),1,.05);
+assert.ok(car.x>7 && onRoad(car.x,car.z), 'Car can turn and move away from a kerb');
 const district=await modelManifest('district');
 assert.ok(['Compact Home','Family Townhouse','Garden Villa','Kitchen and Bath Lab'].every(name=>district.nodes.some(node=>node.name===name)));
 const carModel=await modelManifest('city-car');
 assert.ok(['wheel_FL','wheel_FR','wheel_RL','wheel_RR'].every(name=>carModel.nodes.some(node=>node.name===name)));
-const voiceManifest=JSON.parse(await readFile(new URL('voices.json',dist),'utf8'));
-assert.equal(voiceManifest.provider,'heygen');
-for(const clip of Object.values(voiceManifest.clips)) {
-  assert.match(clip,/^voice-[a-z0-9-]+\.(mp3|wav)$/);
-  assert.ok((await readFile(new URL(clip,dist))).length>1000);
-}
-console.log('Commission budget, city routing, driving, expanded models and optional HeyGen audio passed.');
+assert.doesNotMatch(index,/voice-player|play-voice/);
+console.log('Commission budget, city routing, driving and expanded models passed.');
 
 const { freshCity,hire,beginPavilion,availableWorkers,simulate,furnish,openPavilion }=await import('../city-operations.js');
 const city=freshCity();
@@ -125,3 +146,34 @@ const {default:capture}=await import('../captured-walk.js');
 assert.ok(capture.rate>1 && capture.rate<2);
 assert.ok(capture.clip.tracks.some(track=>track.name==='calf_l.quaternion'));
 console.log('Director operations, captured walk and street texture decoder passed.');
+
+const { mission } = await import('../renovation-data.js');
+const { renovationPlan, consultationBrief } = await import('../renovation-mission.js');
+assert.equal(renovationPlan('unknown','oak'),null);
+assert.equal(renovationPlan('refresh',''),null);
+for (const scope of mission.scopes) {
+  for (const finish of mission.finishes) {
+    const approved = renovationPlan(scope.id,finish.id);
+    const waiting = renovationPlan(scope.id,finish.id,'wait');
+    const switched = renovationPlan(scope.id,finish.id,'switch');
+    const deferred = renovationPlan(scope.id,finish.id,'defer');
+
+    assert.ok(approved.onTime && approved.high <= mission.budget);
+    assert.equal(waiting.cost,approved.cost);
+    assert.equal(waiting.days,finish.lead + mission.delay + mission.install + mission.handover);
+    assert.equal(waiting.onTime,false);
+    assert.equal(switched.selected.id,'umber');
+    assert.equal(switched.cost,scope.cost + mission.substitute.cost);
+    assert.equal(switched.days,scope.prep + mission.install + mission.handover);
+    assert.ok(switched.onTime);
+    assert.equal(deferred.cost,scope.cost);
+    assert.equal(deferred.later,finish.cost + mission.returnVisit);
+    assert.equal(deferred.days,scope.prep + mission.handover);
+    assert.ok(deferred.fitStart > deferred.completion);
+    assert.ok(deferred.onTime);
+    assert.match(consultationBrief(deferred),/Outstanding decision · Approve a separate access window/);
+    assert.match(consultationBrief(switched),/Prices and dates are illustrative/);
+  }
+}
+assert.ok(renovationPlan('layered','walnut','defer').high > mission.budget);
+console.log('Renovation estimates, move-in impacts, dependencies and exported brief passed.');

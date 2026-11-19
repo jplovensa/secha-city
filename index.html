@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#24251c">
-  <meta name="description" content="Walk through the first chapter of SECHA City, an interior design game made from Josephine's SketchUp studio.">
+  <meta name="description" content="Walk through SECHA City and turn a simulated renovation into a brief for your Studio+ consultation.">
   <title>SECHA City · The House of Five Senses</title>
 </head>
 <body>
@@ -14,7 +14,7 @@
     <header class="top">
       <div class="brand"><img class="brand-mark" src="%BASE_URL%secha-logo.png" alt=""><span>SECHA <b>CITY</b><small>THE HOUSE OF FIVE SENSES</small></span></div>
       <div class="top-actions" hidden>
-        <button id="sound" type="button" aria-pressed="false" hidden>Voices off</button>
+        <button id="city-menu" type="button" hidden>City menu</button>
         <button id="manage-toggle" type="button" hidden>City builder</button>
         <button id="cast-toggle" type="button">Cast</button>
         <button id="city-toggle" type="button" hidden>City streets</button>
@@ -26,10 +26,13 @@
       <div class="cover-inner">
         <p class="eyebrow">SECHA City <span></span> Interior district</p>
         <h1 id="cover-title">Central<br><em>City.</em></h1>
-        <p>Build a city around interiors and materials. Hire a crew, develop four sites, furnish your pavilions and open them to visitors.</p>
-        <button id="manage-start" class="primary" type="button" disabled>Preparing the city…</button>
+        <p>Walk into Rumah Teduh and plan a bedroom renovation. Work through a real trade-off and leave with a brief for Studio+.</p>
+        <button id="renovation-start" class="primary" type="button" disabled>Start renovation mission</button>
         <small id="loader" role="status">Opening the garden and reception.</small>
+        <button id="renovation-guided" class="soft" type="button">Play mission without 3D</button>
+        <button id="manage-start" class="soft" type="button" disabled>Run Central City</button>
         <button id="enter" class="soft" type="button" disabled>Story missions</button>
+        <button id="drive-start" class="soft" type="button" disabled>Drive the city</button>
         <button id="free-start" class="soft" type="button" disabled>Walk the streets</button>
         <button id="guided" class="soft" type="button">Read the guided edition</button>
       </div>
@@ -46,11 +49,12 @@
       <p id="cast-status" role="status"></p>
       <ul id="cast-list"></ul>
     </dialog>
+    <section id="renovation" class="panel renovation-panel" aria-labelledby="renovation-title" hidden></section>
     <section id="director" class="panel director" aria-labelledby="director-title" hidden></section>
     <section id="roam" class="panel" aria-labelledby="roam-title" hidden>
-      <p class="eyebrow">Free roam</p><h2 id="roam-title">City streets</h2>
-      <p id="road-task">Drive the perimeter and visit three city landmarks.</p>
-      <p id="speedometer" hidden></p>
+      <p class="eyebrow">SECHA City</p><h2 id="roam-title">The perimeter drive</h2>
+      <p id="road-task" aria-live="polite"></p>
+      <div class="drive-readout" hidden><span id="speedometer"></span><span id="road-distance"></span></div>
       <button id="road-car" class="primary wide" type="button">Get in the car</button>
     </section>
     <div id="waypoint" class="waypoint" hidden aria-hidden="true"><span></span></div>
@@ -70,7 +74,7 @@
       <div id="panel-body">
         <p id="stop-copy"></p>
         <div id="dialogue" class="dialogue" hidden>
-          <div class="dialogue-header"><b id="speaker"></b><button id="play-voice" type="button" hidden>Play voice</button></div>
+          <b id="speaker"></b>
           <p id="speech"></p>
         </div>
         <p id="objective" class="objective" aria-live="polite"></p>
@@ -83,7 +87,6 @@
         <button id="advance" class="primary wide" type="button"></button>
       </div>
     </section>
-    <audio id="voice-player" preload="none"></audio>
     <div id="route-status" role="status"></div>
     <noscript>Enable JavaScript to walk through SECHA City.</noscript>
   </main>

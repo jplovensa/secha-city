@@ -37,3 +37,9 @@ export function newChapter() {
     get cleared() { return cleared.size; },
   };
 }
+
+export function handoverLine(spacing,light) {
+  const privacy = spacing <= 18 ? 'I like how the tighter screen lets the light through in little pieces.'
+    : 'I like how the wider screen lets me see the room before I step inside.';
+  return privacy + (light < 40 ? ' It feels quiet in here.' : ' There’s enough light for my tea.');
+}
