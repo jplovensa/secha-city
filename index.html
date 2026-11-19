@@ -22,13 +22,14 @@
       <div class="cover-inner">
         <p class="eyebrow">Chapter 01 <span></span> A room for two</p>
         <h1 id="cover-title">A house for<br>the <em>senses.</em></h1>
-        <p>Follow Josephine’s working sketches from the garden to the wayang wall. Then make a room for someone you love.</p>
+        <p>Meet Josephine at reception. Follow her sketches from the garden to the wayang wall, then make a room for someone you love.</p>
         <button id="enter" class="primary" type="button" disabled>Preparing the city…</button>
         <small id="loader" role="status">Opening the garden and reception.</small>
         <button id="guided" class="soft" type="button">Read the guided edition</button>
       </div>
     </section>
     <nav id="map" class="map" aria-label="Chapter route" hidden></nav>
+    <div id="waypoint" class="waypoint" hidden aria-hidden="true"><span></span></div>
     <div id="reticle" aria-hidden="true" hidden></div>
     <p id="controls" class="controls" hidden><b>W A S D</b> Walk <span>·</span> Drag to look <span>·</span> <b>E</b> Interact</p>
     <div id="touch" aria-label="Walking controls" hidden>
@@ -44,6 +45,8 @@
       </header>
       <div id="panel-body">
         <p id="stop-copy"></p>
+        <div id="dialogue" class="dialogue" hidden><b id="speaker"></b><p id="speech"></p></div>
+        <p id="objective" class="objective" aria-live="polite"></p>
         <div id="story"></div>
         <div id="design" hidden>
           <div class="slider"><label for="spacing">Divider spacing</label><output id="spacing-value" for="spacing"></output><input id="spacing" type="range" min="12" max="28" step="1" value="16"></div>

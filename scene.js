@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { dividerLayout, finishes } from './chapter.js';
+import { createCast } from './characters.js';
+import { applyFurnitureLayout } from './layout.js';
 
 const files = ['arrival', 'gallery', 'teduh'];
 const asset = (name) => new URL(import.meta.env.BASE_URL + name, document.baseURI).href;
@@ -21,6 +23,7 @@ export function createCity(canvas, onIssue) {
   const camera = new THREE.PerspectiveCamera(56, 1, .075, 125);
   camera.rotation.order = 'YXZ';
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  const cast = createCast(scene, name => loader.loadAsync(asset(name)));
   const sky = new THREE.HemisphereLight('#fcf1dc', '#a5947a', 2.05);
   const sun = new THREE.DirectionalLight('#ffdfaf', 2.0);
   sun.position.set(-13, 19, 17);
@@ -51,8 +54,8 @@ export function createCity(canvas, onIssue) {
   const temporary = new THREE.Vector3();
 
   function collectSolids(object) {
-    const solidParent = /wall|shell|reception|steps|bed|seating|lounge|sofa|credenza|worktable|desk|wood rail|partition/i;
-    const ignored = /glass|glaz|canopy|wayang|fluted|water|context labels/i;
+    const solidParent = /wall|shell|reception|steps|bed|seating|lounge|sofa|chair|table|wardrobe|credenza|worktable|desk|wood rail|partition/i;
+    const ignored = /glass|glaz|canopy|wayangcarving|wayangdrawing|wayangblank|wayanglight|fluted|water|context.labels/i;
     object.updateMatrixWorld(true);
     object.traverse(node => {
       if (!node.isMesh || node.isInstancedMesh) return;
@@ -78,7 +81,9 @@ export function createCity(canvas, onIssue) {
   function load(name, progress) {
     if (!files.includes(name)) return Promise.resolve();
     if (!promises.has(name)) {
-      const pending = loader.loadAsync(asset(name + '.glb'), progress).then(({scene: object}) => {
+      const pending = loader.loadAsync(asset(name + '.glb'), progress).then(gltf => {
+        applyFurnitureLayout(name,gltf);
+        const object = gltf.scene;
         scene.add(object);
         for (const label of Object.keys(wayang)) {
           object.traverse(node => { if (node.name === label) wayang[label].push(node); });
@@ -108,7 +113,7 @@ export function createCity(canvas, onIssue) {
   }
 
   const screen = new THREE.Group();
-  screen.position.copy(worldPoint([10.34,-9.78,.33]));
+  screen.position.copy(worldPoint([10.55,-9.78,.33]));
   scene.add(screen);
   screen.visible = false;
   const wood = new THREE.MeshStandardMaterial({color: finishes.walnut.color, roughness: .57});
@@ -185,18 +190,21 @@ export function createCity(canvas, onIssue) {
     if (!size) return false;
     temporary.set(dx / size, 0, dz / size);
     const probe = camera.position.clone().addScaledVector(temporary, size + .23);
+    if (cast.nearPerson(probe) && !cast.nearPerson(camera.position)) return true;
     pointBox.min.copy(probe).addScalar(-.32);
+    pointBox.min.y = probe.y - 1.48;
     pointBox.max.copy(probe).addScalar(.32);
     for (const {node,box} of collision) {
       if (!pointBox.intersectsBox(box)) continue;
       ray.set(camera.position, temporary);
       ray.far = size + .23;
       hits.length = 0;
-      node.raycast(ray,hits);
-      if (hits.length) return true;
-      ray.ray.origin.y -= .65;
-      node.raycast(ray,hits);
-      if (hits.length) return true;
+      for (const drop of [0,.7,1.30]) {
+        ray.ray.origin.y = camera.position.y - drop;
+        if (ray.ray.origin.y < box.min.y || ray.ray.origin.y > box.max.y) continue;
+        node.raycast(ray,hits);
+        if (hits.length) return true;
+      }
     }
     if (screen.visible) {
       const nearScreen = Math.abs(probe.z - screen.position.z) < .17 && Math.abs(probe.x - screen.position.x) < 1.3;
@@ -226,6 +234,31 @@ export function createCity(canvas, onIssue) {
     return moved;
   }
 
+  function distanceTo(point) {
+    return Math.hypot(camera.position.x-point[0],camera.position.z-point[2]);
+  }
+
+  function approach(point, delta) {
+    const dx = point[0] - camera.position.x;
+    const dz = point[2] - camera.position.z;
+    yaw = Math.atan2(-dx,-dz);
+    pitch = -.035;
+    camera.rotation.set(pitch,yaw,0,'YXZ');
+    dirty = true;
+    return walk(0,1,delta);
+  }
+
+  function marker(point) {
+    const target = new THREE.Vector3(point[0],point[1]+1.77,point[2]);
+    camera.updateMatrixWorld();
+    const projected = target.project(camera);
+    return {
+      visible: projected.z < 1 && projected.z > -1 && Math.abs(projected.x) < .91 && Math.abs(projected.y) < .82,
+      x: (1+projected.x)*50,
+      y: (1-projected.y)*50,
+    };
+  }
+
   function resize() {
     dirty = true;
     camera.aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
@@ -242,5 +275,12 @@ export function createCity(canvas, onIssue) {
     dirty = false;
   }
 
-  return { load, lookFrom, turn, walk, setStage, setDesign, draw };
+  function animate(delta) {
+    const animated = cast.update(delta,camera);
+    dirty ||= animated;
+  }
+
+  return { load, lookFrom, turn, walk, setStage, setDesign, draw, animate, marker, approach, distanceTo,
+    preloadCast:cast.preload, showCast:cast.show };
+
 }
