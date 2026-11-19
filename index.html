@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#24251c">
+  <meta name="description" content="Walk through the first chapter of SECHA City, an interior design game made from Josephine's SketchUp studio.">
+  <title>SECHA City · The House of Five Senses</title>
+</head>
+<body>
+  <main id="experience">
+    <canvas id="world" aria-label="First-person view of SECHA City" tabindex="0"></canvas>
+    <div class="wash"></div>
+    <header class="top">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">S</span><span>SECHA <b>CITY</b><small>THE HOUSE OF FIVE SENSES</small></span></div>
+      <div class="top-actions" hidden>
+        <button id="sound" type="button" aria-pressed="false">Sound off</button>
+        <button id="map-toggle" type="button" aria-expanded="false" aria-controls="map">Route</button>
+      </div>
+    </header>
+    <section id="cover" class="cover" aria-labelledby="cover-title">
+      <div class="cover-inner">
+        <p class="eyebrow">Chapter 01 <span></span> A room for two</p>
+        <h1 id="cover-title">A house for<br>the <em>senses.</em></h1>
+        <p>Follow Josephine’s working sketches from the garden to the wayang wall. Then make a room for someone you love.</p>
+        <button id="enter" class="primary" type="button" disabled>Preparing the city…</button>
+        <small id="loader" role="status">Opening the garden and reception.</small>
+        <button id="guided" class="soft" type="button">Read the guided edition</button>
+      </div>
+    </section>
+    <nav id="map" class="map" aria-label="Chapter route" hidden></nav>
+    <div id="reticle" aria-hidden="true" hidden></div>
+    <p id="controls" class="controls" hidden><b>W A S D</b> Walk <span>·</span> Drag to look <span>·</span> <b>E</b> Interact</p>
+    <div id="touch" aria-label="Walking controls" hidden>
+      <button type="button" data-move="KeyW" aria-label="Walk forward">↑</button>
+      <button type="button" data-move="KeyA" aria-label="Step left">←</button>
+      <button type="button" data-move="KeyS" aria-label="Walk back">↓</button>
+      <button type="button" data-move="KeyD" aria-label="Step right">→</button>
+    </div>
+    <section id="panel" class="panel" aria-labelledby="stop-name" hidden>
+      <header id="panel-header">
+        <div><p class="eyebrow" id="stop-type"></p><h2 id="stop-name"></h2></div>
+        <button id="panel-toggle" class="icon" type="button" aria-controls="panel-body" aria-expanded="true" aria-label="Minimise story">−</button>
+      </header>
+      <div id="panel-body">
+        <p id="stop-copy"></p>
+        <div id="story"></div>
+        <div id="design" hidden>
+          <div class="slider"><label for="spacing">Divider spacing</label><output id="spacing-value" for="spacing"></output><input id="spacing" type="range" min="12" max="28" step="1" value="16"></div>
+          <div class="slider"><label for="daylight">Light at the screen</label><output id="light-value" for="daylight"></output><input id="daylight" type="range" min="0" max="100" step="5" value="55"></div>
+          <div class="compare"><button id="original" type="button" aria-pressed="false">Before</button><button id="current" type="button" aria-pressed="true">Your room</button></div>
+        </div>
+        <button id="advance" class="primary wide" type="button"></button>
+      </div>
+    </section>
+    <div id="route-status" role="status"></div>
+    <noscript>Enable JavaScript to walk through SECHA City.</noscript>
+  </main>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>
