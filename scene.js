@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { dividerLayout, finishes } from './chapter.js';
-import { createCast } from './characters.js';
+import { createCast, encounters } from './characters.js';
 import { applyFurnitureLayout } from './layout.js';
+import { driveStep, routeCheckpoints } from './traffic.js';
 
-const files = ['arrival', 'gallery', 'teduh'];
+const files = ['arrival', 'gallery', 'teduh','district'];
 const asset = (name) => new URL(import.meta.env.BASE_URL + name, document.baseURI).href;
 const worldPoint = ([x, y, z]) => new THREE.Vector3(x, z, -y);
 
@@ -45,6 +46,7 @@ export function createCity(canvas, onIssue) {
 
   const wayang = Object.fromEntries(['WayangDrawing','WayangBlank','WayangCarving','WayangLight'].map(name => [name, []]));
   const promises = new Map();
+  let arrivalScene;
   const collision = [];
   const textures = new WeakSet();
   const anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 4);
@@ -84,6 +86,7 @@ export function createCity(canvas, onIssue) {
       const pending = loader.loadAsync(asset(name + '.glb'), progress).then(gltf => {
         applyFurnitureLayout(name,gltf);
         const object = gltf.scene;
+        if (name==='arrival') arrivalScene=object;
         scene.add(object);
         for (const label of Object.keys(wayang)) {
           object.traverse(node => { if (node.name === label) wayang[label].push(node); });
@@ -190,6 +193,7 @@ export function createCity(canvas, onIssue) {
     if (!size) return false;
     temporary.set(dx / size, 0, dz / size);
     const probe = camera.position.clone().addScaledVector(temporary, size + .23);
+    if (roadCar && Math.abs(probe.x-car.x)<1.12 && Math.abs(probe.z-car.z)<2.18 && Math.hypot(camera.position.x-car.x,camera.position.z-car.z)>1) return true;
     if (cast.nearPerson(probe) && !cast.nearPerson(camera.position)) return true;
     pointBox.min.copy(probe).addScalar(-.32);
     pointBox.min.y = probe.y - 1.48;
@@ -220,8 +224,8 @@ export function createCity(canvas, onIssue) {
     const dx = (right * Math.cos(yaw) - forward * Math.sin(yaw)) * meters / norm;
     const dz = (-right * Math.sin(yaw) - forward * Math.cos(yaw)) * meters / norm;
     const oldX = camera.position.x, oldZ = camera.position.z;
-    if (!blocked(dx,0)) camera.position.x = THREE.MathUtils.clamp(oldX + dx,-40,40);
-    if (!blocked(0,dz)) camera.position.z = THREE.MathUtils.clamp(oldZ + dz,-23,44);
+    if (!blocked(dx,0)) camera.position.x = THREE.MathUtils.clamp(oldX + dx,-47,47);
+    if (!blocked(0,dz)) camera.position.z = THREE.MathUtils.clamp(oldZ + dz,-47,47);
     const {x,z} = camera.position;
     const insideQuarter = x > -21 && x < 14.8 && z > -8.7 && z < 14.8;
     const insideReception = x > -6.5 && x < 6.5 && z > 24.5 && z < 32;
@@ -259,6 +263,161 @@ export function createCity(canvas, onIssue) {
     };
   }
 
+  const guestLocations = {
+    arrival:[[2.85,.10,34.3],[-2.05,.10,34.7],[-3.4,.10,35.0],[3.55,.10,35.5]],
+    garden:[[-8.75,.09,23.3],[-9.9,.09,24.5],[-4.5,.09,24.6],[-3,.09,23.6]],
+    worktable:[[-4.7,.29,-3.3],[-4.6,.29,-2.15],[-2.2,.29,-1.9],[-.3,.29,-3.5]],
+    wayang:[[5.82,.33,-4.1],[6.45,.33,-5.42],[9.6,.33,-5.65],[11.03,.33,-4.7]],
+    tea:[[-30.55,.21,15.2],[-29.55,.21,14.15],[-29.6,.21,16.28],[-27.5,.21,16.7]],
+    teduh:[[5.12,.33,12.95],[5.6,.33,11.74],[10.82,.33,13.15],[12.45,.33,12.85]],
+    library:[[28.8,.31,2.4],[32.8,.31,3.15],[34,.31,1.8],[29.3,.31,3.7]],
+    commission:[[5.12,.33,12.95],[5.6,.33,11.74],[10.82,.33,13.15],[12.45,.33,12.85]],
+    courtyard:[[11.7,.08,29.9],[16.0,.08,29.9],[12.3,.08,31.55],[15.8,.08,31.4]],
+    opening:[[-13.05,.33,7.05],[-12.0,.33,9.18],[-16.75,.33,9.1],[-14.25,.33,7.07]],
+  };
+
+  function placeIsClear(point) {
+    if (distanceTo(point.toArray())<1.12 || cast.nearPerson(point,.94)) return false;
+    for (const {node,box} of collision) {
+      if (point.x<box.min.x-.42 || point.x>box.max.x+.42 || point.z<box.min.z-.42 || point.z>box.max.z+.42) continue;
+      for (const lift of [.30,.90,1.40]) {
+        const origin=point.clone().add(new THREE.Vector3(0,lift,0));
+        if (origin.y<box.min.y || origin.y>box.max.y) continue;
+        for (let i=0;i<8;i++) {
+          ray.set(origin,new THREE.Vector3(Math.sin(i*Math.PI/4),0,Math.cos(i*Math.PI/4)));
+          ray.far=.45;
+          hits.length=0;
+          node.raycast(ray,hits);
+          if (hits.length) return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  async function addPerson(stop,name,kind) {
+    const point=(guestLocations[stop]??[]).map(p=>new THREE.Vector3(...p)).find(placeIsClear);
+    if (!point) return null;
+    const id=await cast.addPerson(name,kind,point,camera,stop);
+    dirty=true;
+    return id;
+  }
+
+  let roadCar;
+  let roadSetup;
+  let car={x:-3,z:42,yaw:Math.PI/2,speed:0};
+  let wheels=[];
+  let driving=false;
+  let checkpoints=[];
+  let currentCheckpoint=0;
+  const roadHeight=.134;
+  function stripe(x,z,width,depth,material,y=roadHeight) {
+    const flat=new THREE.Mesh(new THREE.PlaneGeometry(width,depth),material);
+    flat.rotation.x=-Math.PI/2;
+    flat.position.set(x,y,z);
+    scene.add(flat);
+  }
+
+  function clearRoadTrees() {
+    arrivalScene?.traverse(tree=>{
+      if (!/Terminalia.*tropical.almond/i.test(tree.name)) return;
+      const at=tree.getWorldPosition(new THREE.Vector3());
+      const edge=Math.max(Math.abs(at.x),Math.abs(at.z));
+      if(edge<38 || edge>46) return;
+      if(Math.abs(at.x)>Math.abs(at.z)) at.x=Math.sign(at.x)*47.1;
+      else at.z=Math.sign(at.z)*47.1;
+      tree.position.copy(tree.parent.worldToLocal(at));
+    });
+  }
+
+  function road() {
+    clearRoadTrees();
+    const asphalt=new THREE.MeshStandardMaterial({color:'#57554f',roughness:.99});
+    const paint=new THREE.MeshStandardMaterial({color:'#d9c6a1',roughness:.94});
+    for (const side of [-1,1]) {
+      stripe(0,42*side,92,7.2,asphalt);
+      stripe(42*side,0,7.2,76.8,asphalt);
+      for (let m=-35;m<=35;m+=5) {
+        stripe(m,42*side,2.5,.07,paint,roadHeight+.013);
+        stripe(42*side,m,.07,2.5,paint,roadHeight+.013);
+      }
+    }
+    checkpoints=routeCheckpoints.map(entry => {
+      const marker=new THREE.Mesh(new THREE.TorusGeometry(1.75,.075,12,40),new THREE.MeshBasicMaterial({color:'#ffeea3'}));
+      marker.rotation.x=-Math.PI/2;
+      marker.position.set(entry.x,roadHeight+.10,entry.z);
+      scene.add(marker);
+      return marker;
+    });
+    checkpoints.forEach((marker,id)=>{marker.visible=id===currentCheckpoint;});
+  }
+
+  async function openDistrict() {
+    if (!roadSetup) {
+      roadSetup=Promise.all([load('district'),loader.loadAsync(asset('city-car.glb'))]).then(([,result])=>{
+        roadCar=result.scene;
+        wheels=['FL','FR','RL','RR'].map(id=>roadCar.getObjectByName('wheel_'+id)).filter(Boolean);
+        scene.add(roadCar);
+        road();
+        syncCar();
+      }).catch(error=>{roadSetup=null;throw error;});
+    }
+    await roadSetup;
+    await cast.show('roam');
+    placeByCar();
+    dirty=true;
+  }
+
+  function syncCar() {
+    roadCar.position.set(car.x,roadHeight+.035,car.z);
+    roadCar.rotation.y=car.yaw;
+  }
+
+  function placeByCar() {
+    driving=false;
+    car={...car,speed:0};
+    const eye=[car.x-3.5*Math.cos(car.yaw),-(car.z+3.5*Math.sin(car.yaw)),1.68];
+    const target=[car.x,-car.z,1.0];
+    lookFrom(eye,target);
+  }
+
+  function beginDrive() {
+    if (!roadCar || Math.hypot(camera.position.x-car.x,camera.position.z-car.z)>5) return false;
+    driving=true;
+    drive(0,0,0);
+    return true;
+  }
+
+  function drive(leftRight,goStop,dt) {
+    if (!roadCar || !driving) return null;
+    car=driveStep(car,-leftRight,goStop,dt);
+    syncCar();
+    for (const wheel of wheels) wheel.rotateX(car.speed*dt/.30);
+    const forward=new THREE.Vector3(Math.sin(car.yaw),0,Math.cos(car.yaw));
+    const center=roadCar.position;
+    const desired=center.clone().addScaledVector(forward,-7).add(new THREE.Vector3(0,3.45,0));
+    camera.position.lerp(desired,dt===0 ? 1 : Math.min(1,dt*9));
+    camera.lookAt(center.clone().addScaledVector(forward,3).add(new THREE.Vector3(0,1.02,0)));
+    const target=routeCheckpoints[currentCheckpoint];
+    if(target && Math.hypot(car.x-target.x,car.z-target.z)<3.5) {
+      checkpoints[currentCheckpoint++].visible=false;
+      if (checkpoints[currentCheckpoint]) checkpoints[currentCheckpoint].visible=true;
+    }
+    dirty=true;
+    return {speed:Math.round(Math.abs(car.speed)*3.6),checkpoint:currentCheckpoint};
+  }
+
+  function setMood(mood) {
+    const dusk=mood==='dusk';
+    scene.background.set(dusk?'#727d93':'#d8c9ae');
+    scene.fog.color.copy(scene.background);
+    sky.color.set(dusk?'#d1cbf1':'#fcf1dc');
+    sun.color.set(dusk?'#f3a884':'#ffdfaf');
+    sky.intensity=dusk?1.25:2.05;
+    sun.intensity=dusk?.72:2;
+    dirty=true;
+  }
+
   function resize() {
     dirty = true;
     camera.aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
@@ -281,6 +440,7 @@ export function createCity(canvas, onIssue) {
   }
 
   return { load, lookFrom, turn, walk, setStage, setDesign, draw, animate, marker, approach, distanceTo,
-    preloadCast:cast.preload, showCast:cast.show };
+    preloadCast:cast.preload, showCast:cast.show, addPerson, removePerson:id=>{cast.removePerson(id);dirty=true;},
+    setMood, openDistrict, beginDrive, stopDrive:placeByCar, drive };
 
 }

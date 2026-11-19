@@ -1,21 +1,25 @@
 import './style.css';
 import { defaults, finishes, stages, stops, updateDesign, dividerLayout } from './chapter.js';
-import { makeSound } from './sound.js';
+import { makeVoice } from './sound.js';
 import { createCity } from './scene.js';
 import { encounters } from './characters.js';
 import { newChapter, stageActions } from './gameplay.js';
+import { handoverCue } from './voice-cues.js';
+import { chapterFor, chapters, commissionBudget, packages, quote } from './campaign.js';
+import { routeCheckpoints } from './traffic.js';
 
 const $ = id => document.getElementById(id);
 const experience = $('experience');
 const canvas = $('world');
-const audio = makeSound();
+const base = import.meta.env.BASE_URL;
+const player = $('voice-player');
+const voice = makeVoice(player,base);
 const keys = new Set();
 const senseNotes = new Map();
 const seen = new Set();
 const chapter = newChapter();
 const interactRadius = 1.62;
 const storageKey = 'secha-city-room-v1';
-const base = import.meta.env.BASE_URL;
 let city;
 let coverOpen = true;
 let index = -1;
@@ -30,11 +34,17 @@ let tea = '';
 let garden = '';
 let transition = 0;
 let drag;
-let lastStep = 0;
 let lastFrame = performance.now();
 let lastDraw = 0;
 let approaching = false;
 let blockedFor = 0;
+let campaignDone = false;
+let roaming = false;
+let driving = false;
+let mood = '';
+let selections = {};
+const guests = new Map();
+let nextGuestId=0;
 let loaded = false;
 
 try {
@@ -97,7 +107,6 @@ function setStage(stage) {
   chapter.record(stageActions[stage]);
   if (!guided) city?.setStage(stage);
   if (stage === 3) sense('Sight','The wayang backlight');
-  audio.tick('chime');
   renderStory();
   renderObjective();
 }
@@ -122,15 +131,16 @@ function saveDesign(change) {
 }
 
 function refreshDesign() {
-  const draft = comparison ? defaults : design;
+  const id=stops[index]?.id;
+  const draft = comparison ? defaults : id === 'commission' ? quote(selections).design ?? design : design;
   $('spacing-value').value = draft.spacing + ' cm';
   $('light-value').value = draft.light + '%';
   $('spacing').value = draft.spacing;
   $('daylight').value = draft.light;
   $('original').setAttribute('aria-pressed',String(comparison));
   $('current').setAttribute('aria-pressed',String(!comparison));
-  if (!guided && stops[index]?.id === 'teduh') city?.setDesign(draft);
-  if (guided && stops[index]?.id === 'teduh' && !handed) {
+  if (!guided && ['teduh','commission'].includes(id)) city?.setDesign(draft);
+  if (guided && ['teduh','commission'].includes(id) && !handed) {
     const view = $('divider-plan');
     if (view) {
       view.style.setProperty('--room-light', String(draft.light / 100));
@@ -145,6 +155,10 @@ function renderStory() {
   const stop = stops[index];
   const story = $('story');
   story.replaceChildren();
+  if (handed && stop.id === 'opening') {
+    story.append(storyNote(guestsHere().length + ' guest' + (guestsHere().length === 1 ? '' : 's') + ' at the opening · ' + quote(selections).remaining + ' credits left from the commission.'));
+    return;
+  }
   if (handed) {
     const count = dividerLayout(design.spacing).length;
     story.append(storyNote(count + ' turned slats · ' + design.spacing + ' cm spacing · ' + finishes[design.finish].label));
@@ -167,7 +181,6 @@ function renderStory() {
       chapter.record(choice === 'breeze' ? 'breeze' : 'pandan');
       if (choice === 'breeze') {
         sense('Sound','Breeze under the almond trees');
-        audio.tick('chime');
       } else {
         sense('Scent','Crushed pandan leaf');
       }
@@ -175,7 +188,7 @@ function renderStory() {
       renderObjective();
     }));
     if (garden) story.append(storyNote(garden === 'breeze'
-      ? 'The garden carries a low rustle. Switch sound on to hear it as you walk.'
+      ? 'Dina pauses under the canopy where the leaves catch the breeze. Add that sound to your room brief.'
       : 'Imagine the sweet, green scent on your fingers as you cross from garden to studio.'));
   }
   if (stop.id === 'worktable') {
@@ -211,7 +224,52 @@ function renderStory() {
       ? 'A familiar cup, left warm on the side table.'
       : 'A little heat and sweetness before you open the door.'));
   }
-  if (stop.id === 'teduh' && guided) {
+  if (stop.id === 'library') {
+    const names={finish:'Timber',screen:'Divider',lighting:'Light'};
+    for(const [category,options] of Object.entries(packages)){
+      const row=document.createElement('div');
+      row.className='budget-row';
+      const title=document.createElement('b');
+      title.textContent=names[category];
+      row.append(title,makeChoices(options.map(({id,label,cost})=>[id,label+' · '+cost]),selections[category],value=>{
+        selections={...selections,[category]:value};
+        chapter.forget('commission-before');
+        chapter.forget('commission-after');
+        if (quote(selections).ready) chapter.record('quote');
+        else chapter.forget('quote');
+        renderStory();
+        renderObjective();
+      }));
+      story.append(row);
+    }
+    const price=quote(selections);
+    const tally=document.createElement('p');
+    tally.className='budget-total';tally.dataset.over=String(price.remaining<0);
+    tally.textContent=price.total+' / '+commissionBudget+' credits'+(price.remaining<0?' · Over budget':' · '+price.remaining+' left');
+    story.append(tally);
+  }
+  if (stop.id === 'commission') {
+    const installed=quote(selections).design;
+    if(installed) {
+      story.append(storyNote(finishes[installed.finish].label+' · '+installed.spacing+' cm spacing · '+(installed.light===30?'Warm light':'Filtered daylight')));
+    }
+  }
+  if (stop.id === 'courtyard') {
+    story.append(makeChoices([['afternoon','Afternoon light'],['dusk','Dusk']],mood,next=>{
+      mood=next;
+      if (!guided) city.setMood(mood);
+      chapter.record('mood');
+      renderStory();renderObjective();
+    }));
+  }
+  if (stop.id === 'opening') {
+    const row=document.createElement('div');
+    row.className='stage';
+    row.append(button('Add a guest',openCast));
+    story.append(row);
+    if (guestsHere().length) story.append(storyNote('Guest list · '+guestsHere().map(x=>x.name).join(', ')));
+  }
+  if (['teduh','commission'].includes(stop.id) && guided) {
     const screen = document.createElement('div');
     screen.id = 'divider-plan';
     screen.className = 'divider-plan';
@@ -256,11 +314,11 @@ function meet() {
   if (stop.id === 'wayang') chapter.record(stageActions[0]);
   approaching = false;
   showNotice('');
-  audio.tick('chime');
   $('waypoint').hidden = true;
-  if (!guided && ['wayang','teduh'].includes(stop.id)) city.lookFrom(stop.eye,stop.at);
+  if (!guided && ['wayang','teduh','commission'].includes(stop.id)) city.lookFrom(stop.eye,stop.at);
   showPanel(true);
   renderUI();
+  playCurrentVoice();
 }
 
 function renderUI() {
@@ -269,22 +327,26 @@ function renderUI() {
   if (!stop) return;
   const encounter=encounters[stop.id];
   const met=chapter.met(stop.id);
-  $('stop-type').textContent = handed ? 'Chapter complete' : (index+1) + ' / ' + stops.length + ' · ' + stop.kind;
-  $('stop-name').textContent = handed ? 'The room is yours.' : stop.area;
-  const verdict = design.spacing <= 18
-    ? 'I like how the tighter screen lets the light through in little pieces.'
-    : 'I like how the wider screen lets me see the room before I step inside.';
+  const chapterNumber=chapterFor(stop.id);
+  $('stop-type').textContent = handed ? 'Chapter ' + (chapterNumber+1) + ' complete' : 'Ch ' + (chapterNumber+1) + ' · ' + chapters[chapterNumber];
+  $('stop-name').textContent = handed ? (stop.id==='opening' ? 'The studio is open.' : 'The room is yours.') : stop.area;
+  const verdict = handoverCue(design.spacing,design.light).text;
   $('stop-copy').textContent = handed
-    ? 'Ibu has seen your room. You can return to it and keep experimenting.'
+    ? stop.id==='opening' ? 'The opening is underway. Take the city keys and explore the district.' : 'Ibu has seen your room. Your next assignment is waiting at the Material Library.'
     : met ? stop.copy : encounter.prompt;
-  $('dialogue').hidden = !met;
+  $('dialogue').hidden = !met || (handed && stop.id==='opening');
   $('speaker').textContent = encounter.name + ' · ' + encounter.role;
-  $('speech').textContent = handed ? verdict + (design.light < 40 ? ' It feels quiet in here.' : ' There’s enough light for my tea.') : encounter.line;
-  $('advance').textContent = handed ? 'Return to your room' : stop.action;
-  $('design').hidden = stop.id !== 'teduh' || handed || !met;
+  $('speech').textContent = handed ? verdict : encounter.line;
+  $('advance').textContent = handed ? stop.id==='opening' ? 'Explore the city' : 'Start Chapter 02' : stop.action;
+  $('design').hidden = !['teduh','commission'].includes(stop.id) || handed || !met;
+  for(const slider of document.querySelectorAll('#design .slider')) slider.hidden=stop.id==='commission';
+  $('current').textContent=stop.id==='commission' ? 'Installed' : 'Your room';
+  $('cast-toggle').hidden=guided || roaming;
+  $('city-toggle').hidden=guided || !campaignDone;
   renderStory();
   refreshDesign();
   renderObjective();
+  refreshVoiceControls();
   [...$('map').children].forEach((item,i) => {
     item.setAttribute('aria-current', String(i === index));
     item.disabled = !seen.has(stops[i].id);
@@ -310,6 +372,14 @@ function showNotice(message) {
 
 async function go(next) {
   const version = ++transition;
+  if (driving) city.stopDrive();
+  roaming=false;
+  driving=false;
+  $('roam').hidden=true;
+  $('story-toggle').hidden=true;
+  updateDrivingUI();
+  voice.stop();
+  refreshVoiceControls();
   approaching = false;
   $('waypoint').hidden = true;
   stopWayangPlayback();
@@ -318,7 +388,7 @@ async function go(next) {
   const stop = stops[next];
   if (!stop) return;
   if (!guided) {
-    const model = ['arrival','garden'].includes(stop.id) ? 'arrival' : stop.id === 'teduh' ? 'teduh' : 'gallery';
+    const model = ['arrival','garden','courtyard'].includes(stop.id) ? 'arrival' : ['teduh','commission'].includes(stop.id) ? 'teduh' : 'gallery';
     $('advance').disabled = true;
     showNotice('Opening ' + stop.area + '…');
     try {
@@ -348,7 +418,6 @@ async function go(next) {
     if (!guided) city.setStage(activeStage);
   }
   showNotice('');
-  audio.setRoom(['arrival','garden','tea'].includes(stop.id));
   showPanel(true);
   renderUI();
 }
@@ -406,18 +475,26 @@ function advance(assist = true) {
     return;
   }
   if (handed) {
-    handed = false;
-    renderUI();
+    if(id==='opening') {
+      if (!guided) openCity();
+      return;
+    }
+    go(index+1);
     return;
   }
   if (!chapter.finish(id)) return;
-  if (index < stops.length - 1) {
-    go(index + 1);
-  } else {
-    handed = true;
-    comparison = false;
-    audio.tick('chime');
+  if(id==='teduh' || id==='opening'){
+    handed=true;
+    comparison=false;
+    if(id==='opening') campaignDone=true;
     renderUI();
+    if(id==='opening' && guided) {
+      $('advance').disabled=true;
+      $('advance').textContent='Campaign complete';
+    } else playCurrentVoice();
+  } else {
+    if (id==='commission') saveDesign(quote(selections).design);
+    go(index+1);
   }
 }
 
@@ -431,29 +508,203 @@ for (const [i,stop] of stops.entries()) {
 
 $('enter').addEventListener('click', () => begin(false));
 $('guided').addEventListener('click', () => begin(true));
-$('sound').addEventListener('click', async () => {
+function voiceKey() {
+  const stop = stops[index];
+  if (!stop || !chapter.met(stop.id)) return '';
+  if (!handed) return stop.id;
+  if (stop.id!=='teduh') return '';
+  return handoverCue(design.spacing,design.light).key;
+}
+
+function refreshVoiceControls() {
+  $('sound').hidden = !voice.available;
+  $('play-voice').hidden = !voice.has(voiceKey());
+  $('sound').textContent = voice.enabled ? 'Voices on' : 'Voices off';
+  $('sound').setAttribute('aria-pressed',String(voice.enabled));
+  $('play-voice').textContent = voice.isPlaying() ? 'Stop voice' : 'Play voice';
+}
+
+async function playCurrentVoice() {
   try {
-    const on = await audio.toggle();
-    $('sound').textContent = on ? 'Sound on' : 'Sound off';
-    $('sound').setAttribute('aria-pressed', String(on));
-    audio.setRoom(['arrival','garden','tea'].includes(stops[index]?.id));
-  } catch {
-    showNotice('Audio is unavailable on this device.');
+    if (await voice.play(voiceKey())) refreshVoiceControls();
+  } catch (error) {
+    const blocked = error.name === 'NotAllowedError';
+    showNotice(blocked ? 'Tap Play voice to hear the dialogue.' : 'The voice clip could not play. The dialogue is shown below.');
+    refreshVoiceControls();
   }
+}
+
+$('sound').addEventListener('click', () => {
+  voice.setEnabled(!voice.enabled);
+  if (voice.enabled) playCurrentVoice();
+  refreshVoiceControls();
 });
+$('play-voice').addEventListener('click',() => {
+  if (voice.isPlaying()) voice.stop();
+  else {
+    voice.setEnabled(true);
+    showNotice('');
+    playCurrentVoice();
+  }
+  refreshVoiceControls();
+});
+for (const event of ['play','pause','ended']) player.addEventListener(event,refreshVoiceControls);
+refreshVoiceControls();
+voice.load().then(refreshVoiceControls);
 $('map-toggle').addEventListener('click',() => setMap($('map').hidden));
 $('panel-toggle').addEventListener('click',() => showPanel($('panel-body').hidden));
 $('advance').addEventListener('click',() => advance());
 $('spacing').addEventListener('input',event => saveDesign({spacing:Number(event.target.value)}));
 $('daylight').addEventListener('input',event => saveDesign({light:Number(event.target.value)}));
-$('original').addEventListener('click',() => { chapter.record('before'); comparison = true;refreshDesign();renderObjective(); });
-$('current').addEventListener('click',() => { if (comparison) chapter.record('after'); comparison = false;refreshDesign();renderObjective(); });
+$('original').addEventListener('click',() => {
+  chapter.record(stops[index].id==='commission'?'commission-before':'before');
+  comparison=true;refreshDesign();renderObjective();
+});
+$('current').addEventListener('click',() => {
+  if(comparison) chapter.record(stops[index].id==='commission'?'commission-after':'after');
+  comparison=false;refreshDesign();renderObjective();
+});
+
+function guestsHere() {
+  return guests.get(stops[index]?.id)??[];
+}
+
+function renderGuests() {
+  const list=$('cast-list');
+  list.replaceChildren(...guestsHere().map(({id,name})=>{
+    const row=document.createElement('li');
+    const title=document.createElement('span');
+    title.textContent=name;
+    const remove=button('Remove',()=>{
+      if(!guided) city.removePerson(id);
+      const records=guestsHere().filter(person=>person.id!==id);
+      guests.set(stops[index].id,records);
+      if(stops[index].id==='opening' && !records.length && !campaignDone) chapter.forget('guest');
+      renderGuests();renderStory();renderObjective();
+    });
+    remove.setAttribute('aria-label','Remove '+name);
+    row.append(title,remove);
+    return row;
+  }));
+}
+
+function openCast() {
+  if (roaming || !stops[index]) return;
+  keys.clear();
+  approaching=false;
+  $('cast-status').textContent='';
+  renderGuests();
+  $('cast-dialog').showModal();
+}
+
+$('cast-toggle').addEventListener('click',openCast);
+$('cast-close').addEventListener('click',()=>$('cast-dialog').close());
+$('cast-form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const stop=stops[index].id;
+  const entries=guestsHere();
+  const name=$('guest-name').value.trim();
+  if(!name) return;
+  if(entries.length>=4) {
+    $('cast-status').textContent='This stop has space for four added characters.';
+    return;
+  }
+  const submit=$('add-guest');
+  submit.disabled=true;
+  try {
+    const id=guided ? 'guided-' + (++nextGuestId) : await city.addPerson(stop,name,$('guest-kind').value);
+    if(!id) {
+      $('cast-status').textContent='The places near this stop are occupied. Walk farther into the room and try again.';
+      return;
+    }
+    guests.set(stop,[...entries,{id,name}]);
+    if(stop==='opening') chapter.record('guest');
+    $('cast-status').textContent=name+' joined this stop.';
+    $('guest-name').value='';
+    renderGuests();renderStory();renderObjective();
+  } catch {
+    $('cast-status').textContent='The character could not load. Try again.';
+  } finally {
+    submit.disabled=false;
+  }
+});
+
+let circuitProgress=0;
+function updateDrivingUI(speed=0) {
+  $('speedometer').hidden=!driving;
+  $('speedometer').textContent=speed+' km/h';
+  $('road-car').textContent=driving?'Get out':'Get in the car';
+  $('controls').innerHTML=driving ? '<b>W S</b> Accelerate / reverse <span>·</span> <b>A D</b> Steer <span>·</span> <b>E</b> Exit'
+    : roaming ? '<b>W A S D</b> Walk <span>·</span> Drag to look <span>·</span> <b>E</b> Get in'
+    : '<b>W A S D</b> Walk <span>·</span> Drag to look <span>·</span> <b>E</b> Interact';
+}
+
+async function openCity(fromCover=false) {
+  if(guided || (!campaignDone && !fromCover) || roaming || !loaded) return;
+  const now=++transition;
+  keys.clear();
+  $('advance').disabled=true;
+  $('city-toggle').disabled=true;
+  $('free-start').disabled=true;
+  if(fromCover) $('loader').textContent='Opening the city streets…';
+  showNotice('Opening the city streets…');
+  try {
+    await city.openDistrict();
+    if(now!==transition) return;
+    roaming=true;driving=false;
+    coverOpen=false;
+    $('cover').hidden=true;
+    $('controls').hidden=false;
+    $('touch').hidden=false;
+    document.querySelector('.top-actions').hidden=false;
+    $('story-toggle').hidden=false;
+    $('map-toggle').hidden=index<0;
+    $('city-toggle').hidden=true;
+    voice.stop();
+    $('waypoint').hidden=true;
+    $('panel').hidden=true;
+    $('roam').hidden=false;
+    $('cast-toggle').hidden=true;
+    $('road-task').textContent=circuitProgress===3 ? 'All three landmarks visited. The city is open.' : 'Drive through the gold rings at three city landmarks.';
+    updateDrivingUI();
+    showNotice('');
+  } catch {
+    showNotice('The district could not load. Try City streets again.');
+    if(fromCover) $('loader').textContent='The district could not load. Try Free roam again.';
+    $('advance').disabled=false;
+  } finally {
+    $('city-toggle').disabled=false;
+    $('free-start').disabled=false;
+  }
+}
+
+function toggleVehicle() {
+  if(!roaming) return;
+  if(driving) {
+    city.stopDrive();
+    driving=false;
+  } else {
+    driving=city.beginDrive();
+    if(!driving) showNotice('Walk closer to the parked car.');
+    else showNotice('');
+  }
+  keys.clear();
+  updateDrivingUI();
+}
+$('city-toggle').addEventListener('click',()=>openCity());
+$('free-start').addEventListener('click',()=>openCity(true));
+$('story-toggle').addEventListener('click',()=>{
+  $('map-toggle').hidden=false;
+  go(Math.max(index,0));
+});
+$('road-car').addEventListener('click',toggleVehicle);
 
 const motionKeys = new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
 window.addEventListener('keydown',event => {
-  if (coverOpen || event.altKey || event.metaKey || event.ctrlKey || event.target.closest?.('input,textarea,select')) return;
+  if (coverOpen || $('cast-dialog').open || event.altKey || event.metaKey || event.ctrlKey || event.target.closest?.('input,textarea,select')) return;
   if (event.code === 'KeyE' && !event.repeat) {
-    if ($('panel-body').hidden) showPanel(true);
+    if (roaming) toggleVehicle();
+    else if ($('panel-body').hidden) showPanel(true);
     else advance(false);
   }
   if (!guided && motionKeys.has(event.code)) {
@@ -478,7 +729,7 @@ for (const control of document.querySelectorAll('[data-move]')) {
   }
 }
 canvas.addEventListener('pointerdown',event => {
-  if (coverOpen || guided || event.button !== 0) return;
+  if (coverOpen || guided || driving || event.button !== 0) return;
   approaching = false;
   canvas.focus({preventScroll:true});
   canvas.setPointerCapture(event.pointerId);
@@ -497,11 +748,21 @@ function frame(now) {
   const delta = Math.min(.08,(now - lastFrame) / 1000);
   lastFrame = now;
   if (!city || !loaded || guided || document.hidden) return;
-  if (!coverOpen) {
+  if (!coverOpen && driving) {
+    const throttle=Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'));
+    const steer=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
+    const hud=city.drive(steer,throttle,delta);
+    if(hud) {
+      $('speedometer').textContent=hud.speed+' km/h';
+      circuitProgress=hud.checkpoint;
+      const destination=routeCheckpoints[circuitProgress];
+      $('road-task').textContent=destination ? circuitProgress+' / 3 landmarks · Next: '+destination.name : '3 / 3 landmarks visited. The city is yours to explore.';
+    }
+  } else if (!coverOpen) {
     city.animate(delta);
     const stop = stops[index];
     const encounter = encounters[stop?.id];
-    if (encounter && !chapter.met(stop.id)) {
+    if (!roaming && encounter && !chapter.met(stop.id)) {
       if (approaching) {
         if (city.distanceTo(encounter.position) <= interactRadius) {
           meet();
@@ -511,9 +772,6 @@ function frame(now) {
           if (blockedFor > .45) {
             approaching = false;
             showNotice('The path is blocked here. Walk around the furniture and try again.');
-          } else if (moved && now-lastStep > 430) {
-            audio.tick();
-            lastStep = now;
           }
         }
       }
@@ -533,10 +791,7 @@ function frame(now) {
     const right = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
     const turn = Number(keys.has('ArrowRight')) - Number(keys.has('ArrowLeft'));
     if (turn) city.turn(turn * delta * 320,0);
-    if ((forward || right) && city.walk(right,forward,delta) && now - lastStep > 460) {
-      audio.tick();
-      lastStep = now;
-    }
+    if (forward || right) city.walk(right,forward,delta);
   }
   if (now-lastDraw > 1000/35) {
     city.draw();
@@ -554,6 +809,7 @@ async function start() {
     })]);
     loaded = true;
     $('enter').disabled = false;
+    $('free-start').disabled = false;
     $('enter').textContent = 'Enter SECHA City';
     $('loader').textContent = 'Walk with the keyboard or touch controls.';
   } catch (error) {

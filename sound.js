@@ -1,59 +1,53 @@
-export function makeSound() {
-  let context;
-  let volume;
-  let breeze;
+export function makeVoice(player, baseURL) {
   let enabled = false;
+  let activeKey = '';
+  let clips = {};
+  const storageKey = 'secha-city-voices-v1';
+  const relativeURL = path => new URL(baseURL + path, document.baseURI).href;
+  try { enabled = localStorage.getItem(storageKey) === 'on'; } catch { /* use session state */ }
 
-  function init() {
-    context = new AudioContext();
-    volume = context.createGain();
-    volume.gain.value = 0;
-    volume.connect(context.destination);
-    const noise = context.createBuffer(1, context.sampleRate * 3, context.sampleRate);
-    const data = noise.getChannelData(0);
-    let prev = 0;
-    for (let i = 0; i < data.length; i++) {
-      prev = (prev + .023 * (Math.random() * 2 - 1)) / 1.023;
-      data[i] = prev * 3;
+  async function load() {
+    try {
+      const response = await fetch(relativeURL('voices.json'));
+      if (!response.ok) return;
+      const manifest = await response.json();
+      if (manifest.provider !== 'heygen' || !manifest.clips) return;
+      clips = Object.fromEntries(Object.entries(manifest.clips).filter(([,path]) =>
+        typeof path === 'string' && /^voice-[a-z0-9-]+\.(mp3|wav)$/.test(path)));
+    } catch {
+      // The chapter's written dialogue is available without the audio pack.
     }
-    const source = context.createBufferSource();
-    const filter = context.createBiquadFilter();
-    breeze = context.createGain();
-    filter.type = 'lowpass';
-    filter.frequency.value = 900;
-    source.buffer = noise;
-    source.loop = true;
-    source.connect(filter).connect(breeze).connect(volume);
-    breeze.gain.value = .46;
-    source.start();
   }
 
-  return {
-    async toggle() {
-      if (!context) init();
-      await context.resume();
-      enabled = !enabled;
-      volume.gain.setTargetAtTime(enabled ? .17 : 0, context.currentTime, .12);
-      return enabled;
-    },
-    setRoom(outdoors) {
-      breeze?.gain.setTargetAtTime(outdoors ? .8 : .17, context.currentTime, .4);
-    },
-    tick(kind = 'step') {
-      if (!enabled) return;
-      const voice = context.createOscillator();
-      const envelope = context.createGain();
-      const start = context.currentTime;
-      const chime = kind !== 'step';
-      voice.type = chime ? 'sine' : 'triangle';
-      voice.frequency.setValueAtTime(chime ? 520 : 100, start);
-      voice.frequency.exponentialRampToValueAtTime(chime ? 348 : 46, start + .1);
-      envelope.gain.setValueAtTime(.001, start);
-      envelope.gain.exponentialRampToValueAtTime(chime ? .23 : .06, start + .019);
-      envelope.gain.exponentialRampToValueAtTime(.001, start + (chime ? .3 : .13));
-      voice.connect(envelope).connect(volume);
-      voice.start(start);
-      voice.stop(start + .34);
+  function setEnabled(value) {
+    enabled = value;
+    if (!value) stop();
+    try { localStorage.setItem(storageKey,value ? 'on' : 'off'); } catch { /* use session state */ }
+  }
+
+  function stop() {
+    player.pause();
+    if (player.readyState > 0) player.currentTime = 0;
+    activeKey = '';
+  }
+
+  async function play(key) {
+    if (!enabled || !Object.hasOwn(clips,key)) return false;
+    const source = relativeURL(clips[key]);
+    if (player.src !== source) player.src = source;
+    else if (player.readyState > 0) player.currentTime = 0;
+    activeKey = key;
+    try {
+      await player.play();
+      return true;
+    } catch (error) {
+      if (activeKey === key && error.name !== 'AbortError') throw error;
+      return false;
     }
-  };
+  }
+
+  return { get enabled() { return enabled; }, setEnabled, play, stop, load,
+    has: key => Object.hasOwn(clips,key),
+    get available() { return Object.keys(clips).length > 0; },
+    isPlaying: () => Boolean(activeKey && !player.paused && !player.ended) };
 }

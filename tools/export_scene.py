@@ -261,7 +261,13 @@ settings={
   (('05 MATERIAL LIBRARY',),'Material Library',None),
   (('07 CAFE',),'Tea Pavilion',None)
  ],
- 'teduh': [((zone,'03 Resort Suite and Dressing'),'Rumah Teduh',None)]
+ 'teduh': [((zone,'03 Resort Suite and Dressing'),'Rumah Teduh',None)],
+ 'district': [
+  (('02 COMPACT HOME','00 Shell and Context'),'Compact Home',None),
+  (('03 FAMILY TOWNHOUSE','00 Shell and Context'),'Family Townhouse',None),
+  (('04 GARDEN VILLA','00 Shell and Context'),'Garden Villa',None),
+  (('06 KITCHEN BATH LAB','00 Pavilion Shell'),'Kitchen and Bath Lab',None),
+ ]
 }
 for name, paths in settings.items():
     if len(sys.argv)>3 and name not in sys.argv[3:]:

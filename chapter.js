@@ -37,6 +37,26 @@ export const stops = [
     copy: 'Change the distance between the timber slats and the light that falls through them. Minimise this panel to walk around and see how your choices feel.',
     action: 'Hand over the room',
   },
+  {
+    id:'library',area:'Material Library',kind:'Plan the commission',eye:[30.96,-4.0,1.79],at:[31,-1.5,1.44],
+    copy:'Build a complete quote within 850 SECHA credits. Your timber, screen and light will transfer to the installed room.',
+    action:'Install the package',
+  },
+  {
+    id:'commission',area:'The installed room',kind:'Review the commission',eye:[7.02,-13.52,1.74],at:[8.01,-8.97,1.65],
+    copy:'Compare the starting room with the package you ordered. Make sure it works before you hand it to the client.',
+    action:'Approve the commission',
+  },
+  {
+    id:'courtyard',area:'Listening Court',kind:'Set the opening mood',eye:[12.6,-32.5,1.72],at:[13.6,-28.0,1.55],
+    copy:'Choose afternoon or dusk for the opening. The city lighting updates with your choice.',
+    action:'Head to the salon',
+  },
+  {
+    id:'opening',area:'The studio opening',kind:'Welcome a guest',eye:[-16.8,-9.75,1.76],at:[-15.8,-7.02,1.53],
+    copy:'Add a guest to open the salon. Then collect the city keys and explore the new district on foot or by car.',
+    action:'Open the studio',
+  },
 ];
 
 export const stages = [

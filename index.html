@@ -14,21 +14,42 @@
     <header class="top">
       <div class="brand"><img class="brand-mark" src="%BASE_URL%secha-logo.png" alt=""><span>SECHA <b>CITY</b><small>THE HOUSE OF FIVE SENSES</small></span></div>
       <div class="top-actions" hidden>
-        <button id="sound" type="button" aria-pressed="false">Sound off</button>
+        <button id="sound" type="button" aria-pressed="false" hidden>Voices off</button>
+        <button id="cast-toggle" type="button">Cast</button>
+        <button id="city-toggle" type="button" hidden>City streets</button>
+        <button id="story-toggle" type="button" hidden>Story</button>
         <button id="map-toggle" type="button" aria-expanded="false" aria-controls="map">Route</button>
       </div>
     </header>
     <section id="cover" class="cover" aria-labelledby="cover-title">
       <div class="cover-inner">
-        <p class="eyebrow">Chapter 01 <span></span> A room for two</p>
+        <p class="eyebrow">SECHA City <span></span> Story campaign</p>
         <h1 id="cover-title">A house for<br>the <em>senses.</em></h1>
-        <p>Meet Josephine at reception. Follow her sketches from the garden to the wayang wall, then make a room for someone you love.</p>
+        <p>Meet Josephine, design a room, take on a renovation commission, and open your studio in a city you can explore on foot or by car.</p>
         <button id="enter" class="primary" type="button" disabled>Preparing the city…</button>
         <small id="loader" role="status">Opening the garden and reception.</small>
+        <button id="free-start" class="soft" type="button" disabled>Free roam</button>
         <button id="guided" class="soft" type="button">Read the guided edition</button>
       </div>
     </section>
     <nav id="map" class="map" aria-label="Chapter route" hidden></nav>
+    <dialog id="cast-dialog" class="cast-dialog" aria-labelledby="cast-title">
+      <header><h2 id="cast-title">Add character</h2><button id="cast-close" type="button" aria-label="Close cast editor">×</button></header>
+      <form id="cast-form">
+        <label for="guest-name">Name</label><input id="guest-name" required maxlength="32" placeholder="Studio guest">
+        <label for="guest-kind">Character</label>
+        <select id="guest-kind"><option value="guest">Studio guest</option><option value="visitor">Garden visitor</option></select>
+        <button id="add-guest" class="primary" type="submit">Place character</button>
+      </form>
+      <p id="cast-status" role="status"></p>
+      <ul id="cast-list"></ul>
+    </dialog>
+    <section id="roam" class="panel" aria-labelledby="roam-title" hidden>
+      <p class="eyebrow">Free roam</p><h2 id="roam-title">City streets</h2>
+      <p id="road-task">Drive the perimeter and visit three city landmarks.</p>
+      <p id="speedometer" hidden></p>
+      <button id="road-car" class="primary wide" type="button">Get in the car</button>
+    </section>
     <div id="waypoint" class="waypoint" hidden aria-hidden="true"><span></span></div>
     <div id="reticle" aria-hidden="true" hidden></div>
     <p id="controls" class="controls" hidden><b>W A S D</b> Walk <span>·</span> Drag to look <span>·</span> <b>E</b> Interact</p>
@@ -45,7 +66,10 @@
       </header>
       <div id="panel-body">
         <p id="stop-copy"></p>
-        <div id="dialogue" class="dialogue" hidden><b id="speaker"></b><p id="speech"></p></div>
+        <div id="dialogue" class="dialogue" hidden>
+          <div class="dialogue-header"><b id="speaker"></b><button id="play-voice" type="button" hidden>Play voice</button></div>
+          <p id="speech"></p>
+        </div>
         <p id="objective" class="objective" aria-live="polite"></p>
         <div id="story"></div>
         <div id="design" hidden>
@@ -56,6 +80,7 @@
         <button id="advance" class="primary wide" type="button"></button>
       </div>
     </section>
+    <audio id="voice-player" preload="none"></audio>
     <div id="route-status" role="status"></div>
     <noscript>Enable JavaScript to walk through SECHA City.</noscript>
   </main>
