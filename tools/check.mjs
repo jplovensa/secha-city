@@ -119,8 +119,13 @@ for (let i=0; i<70; i++) car=driveStep(car,Number(car.yaw<Math.PI/2),1,.05);
 assert.ok(car.x>7 && onRoad(car.x,car.z), 'Car can turn and move away from a kerb');
 const district=await modelManifest('district');
 assert.ok(['Compact Home','Family Townhouse','Garden Villa','Kitchen and Bath Lab'].every(name=>district.nodes.some(node=>node.name===name)));
-const carModel=await modelManifest('city-car');
-assert.ok(['wheel_FL','wheel_FR','wheel_RL','wheel_RR'].every(name=>carModel.nodes.some(node=>node.name===name)));
+const { vehicleAssets } = await import('../garage-models.js');
+for (const {file} of Object.values(vehicleAssets)) {
+  const model = await modelManifest(file.replace(/\.glb$/,''));
+  for (const part of ['wheel_FL','wheel_FR','wheel_RL','wheel_RR','steering_wheel','glass_windshield','interior']) {
+    assert.ok(model.nodes.some(node=>node.name===part),file+' is missing '+part);
+  }
+}
 assert.doesNotMatch(index,/voice-player|play-voice/);
 console.log('Commission budget, city routing, driving and expanded models passed.');
 

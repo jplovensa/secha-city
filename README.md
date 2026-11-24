@@ -37,3 +37,5 @@ Story dialogue appears as text. The mission’s optional Pandan Walk audio compa
 - [Character assets](public/CHARACTER-CREDITS.md)
 - [Ruang Bayang artwork](public/ARTWORK-CREDITS.md)
 - [Five-Door Hatchback by tevy](https://tevy.dev/models/hatchback), CC0 1.0.
+
+- [Classic 1970s Coupé](https://tevy.dev/models/classic-coupe) and [Family Estate Car](https://tevy.dev/models/estate-car) by tevy, CC0 1.0. The build downloads and verifies a pinned version of each model and serves both from the site.

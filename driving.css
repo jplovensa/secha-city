@@ -16,3 +16,11 @@
   #roam {max-height:40dvh}
   .drive-actions .soft,.drive-actions .primary {min-height:44px}
 }
+@media (max-width:650px) {
+  #roam:has(#road-camera:not([hidden])) {width:calc(100% - 28px);max-width:370px}
+  #roam:has(#road-camera:not([hidden])) .eyebrow {display:none}
+  #roam:has(#road-camera:not([hidden])) h2 {margin-top:0;font-size:1.32rem}
+  #roam:has(#road-camera:not([hidden])) .drive-actions {gap:5px}
+  #roam:has(#road-camera:not([hidden])) .drive-actions button {padding-inline:8px}
+  #roam #drift-score {margin:6px 0}
+}

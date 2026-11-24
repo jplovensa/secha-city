@@ -7,6 +7,7 @@ import { handoverLine, newChapter, stageActions } from './gameplay.js';
 import { chapterFor, chapters, commissionBudget, packages, quote } from './campaign.js';
 import { routeCheckpoints } from './traffic.js';
 import { cars, driftTarget, driftZones } from './drift.js';
+import { vehicleAssets } from './garage-models.js';
 import { makeDirector } from './director-ui.js';
 import { makeRenovation } from './renovation-ui.js';
 
@@ -657,7 +658,7 @@ for (const car of cars) {
   const label = document.createElement('label');
   label.className = 'garage-car';
   label.style.setProperty('--car-color',car.color);
-  label.innerHTML = `<input type="radio" name="city-car" value="${car.id}"><span><b>${car.name}</b><small>${car.description}</small></span>`;
+  label.innerHTML = `<input type="radio" name="city-car" value="${car.id}"><span><b>${car.name}</b><small>${vehicleAssets[car.id].source} · ${car.description}</small></span>`;
   $('garage-cars').append(label);
 }
 

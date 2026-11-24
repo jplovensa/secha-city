@@ -6,7 +6,8 @@ import { dividerLayout, finishes } from './chapter.js';
 import { createCast, encounters } from './characters.js';
 import { applyFurnitureLayout } from './layout.js';
 import { cars, createDriftRun, driftZones, scoreDrift } from './drift.js';
-import { makeCockpit, makeStreetCar } from './garage-models.js';
+import { prepareVehicle, vehicleAssets } from './garage-models.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { addStreetscape } from './streetscape.js';
 import { driveStep, roadDistance, roadHalfWidth, roadLength, roadPoint, routeCheckpoints } from './traffic.js';
 import { createPavilions } from './pavilions.js';
@@ -408,9 +409,8 @@ export function createCity(canvas, onIssue) {
   let car={...parked};
   const vehicles = new Map();
   let profile = cars[0];
-  let cockpit;
+  let activeVehicle;
   let interior = false;
-  let wheels=[];
   let run = null;
   let zoneMarks = [];
   let driving=false;
@@ -503,12 +503,16 @@ export function createCity(canvas, onIssue) {
 
   async function openDistrict(reset = false) {
     if (!roadSetup) {
-      roadSetup=Promise.all([load('district'),loader.loadAsync(asset('city-car.glb'))]).then(([,result])=>{
-        const body = result.scene;
-        vehicles.set('hatch',{body,wheels:['FL','FR','RL','RR'].map(id=>body.getObjectByName('wheel_'+id)).filter(Boolean)});
-        for (const model of cars.slice(1)) vehicles.set(model.id,makeStreetCar(model));
-        cockpit=makeCockpit();
-        scene.add(cockpit.group);
+      roadSetup=Promise.all([load('district'),...cars.map(model=>loader.loadAsync(asset(vehicleAssets[model.id].file)))]).then(([, ...models])=>{
+        const studio = new RoomEnvironment();
+        const generator = new THREE.PMREMGenerator(renderer);
+        const reflections = generator.fromScene(studio,.07);
+        studio.dispose();
+        generator.dispose();
+        for (const [index,model] of models.entries()) {
+          const entry = cars[index];
+          vehicles.set(entry.id,prepareVehicle(model.scene,entry,reflections.texture));
+        }
         setVehicle(profile.id);
         road();
         syncCar();
@@ -526,10 +530,9 @@ export function createCity(canvas, onIssue) {
     if (!model) return;
     if (roadCar) scene.remove(roadCar);
     profile = cars.find(entry=>entry.id===id);
+    activeVehicle = model;
     roadCar = model.body;
-    wheels = model.wheels;
-    cockpit.paint.color.set(profile.color);
-    cockpit.wheel.rotation.z=0;
+    activeVehicle.animate(0,0,0);
     scene.add(roadCar);
     car = {...car,speed:0,heading:car.yaw,slip:0};
     syncCar();
@@ -553,10 +556,7 @@ export function createCity(canvas, onIssue) {
     roadCar.position.set(car.x,roadHeight+.035,car.z);
     roadCar.rotation.y=car.yaw;
     const inside = driving && interior;
-    roadCar.visible = !inside;
-    cockpit.group.visible = inside;
-    cockpit.group.position.copy(roadCar.position);
-    cockpit.group.rotation.y=car.yaw;
+    activeVehicle.setCabinView(inside);
     dirty=true;
   }
 
@@ -580,17 +580,15 @@ export function createCity(canvas, onIssue) {
     if (!roadCar || !driving) return null;
     if (dt) car=driveStep(car,-leftRight,goStop,dt,handbrake,profile);
     syncCar();
-    for (const wheel of wheels) wheel.rotateX(car.speed*dt/.30);
+    activeVehicle.animate(leftRight,car.speed,dt);
     const forward=new THREE.Vector3(Math.sin(car.yaw),0,Math.cos(car.yaw));
     const center=roadCar.position;
     const desired = interior
-      ? new THREE.Vector3(.31,1.19,-.02).applyAxisAngle(THREE.Object3D.DEFAULT_UP,car.yaw).add(center)
+      ? roadCar.localToWorld(activeVehicle.eye.clone())
       : center.clone().addScaledVector(forward,-7).add(new THREE.Vector3(0,3.45,0));
     camera.position.lerp(desired,interior || dt===0 ? 1 : Math.min(1,dt*9));
     if (interior) {
-      camera.lookAt(camera.position.clone().addScaledVector(forward,12).add(new THREE.Vector3(0,-1.15,0)));
-      cockpit.wheel.rotation.z=THREE.MathUtils.lerp(cockpit.wheel.rotation.z,leftRight*.85,Math.min(1,dt*12));
-      cockpit.needle.rotation.z=2.25-Math.min(1,Math.abs(car.speed)/profile.topSpeed)*4.5;
+      camera.lookAt(camera.position.clone().addScaledVector(forward,12).add(new THREE.Vector3(0,-1.28,0)));
     } else camera.lookAt(center.clone().addScaledVector(forward,3).add(new THREE.Vector3(0,1.02,0)));
     if (run) {
       const previous=run.next;
