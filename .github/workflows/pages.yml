@@ -4,6 +4,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -13,6 +14,8 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      PAGES_ARTIFACT: github-pages-${{ github.run_attempt }}
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -29,5 +32,21 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+          name: ${{ env.PAGES_ARTIFACT }}
+      - name: Wait for the Pages artifact to be visible
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in {1..12}; do
+            if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" |
+              jq -e --arg name "$PAGES_ARTIFACT" 'any(.artifacts[]; .name == $name and (.expired | not))' > /dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Pages artifact $PAGES_ARTIFACT is still unavailable"
+          exit 1
       - uses: actions/deploy-pages@v4
         id: deploy
+        with:
+          artifact_name: ${{ env.PAGES_ARTIFACT }}
