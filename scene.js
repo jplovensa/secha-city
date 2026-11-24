@@ -5,6 +5,8 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { dividerLayout, finishes } from './chapter.js';
 import { createCast, encounters } from './characters.js';
 import { applyFurnitureLayout } from './layout.js';
+import { cars, createDriftRun, driftZones, scoreDrift } from './drift.js';
+import { makeCockpit, makeStreetCar } from './garage-models.js';
 import { addStreetscape } from './streetscape.js';
 import { driveStep, roadDistance, roadHalfWidth, roadLength, roadPoint, routeCheckpoints } from './traffic.js';
 import { createPavilions } from './pavilions.js';
@@ -404,7 +406,13 @@ export function createCity(canvas, onIssue) {
   let roadSetup;
   const parked={x:-3,z:42,yaw:Math.PI/2,speed:0};
   let car={...parked};
+  const vehicles = new Map();
+  let profile = cars[0];
+  let cockpit;
+  let interior = false;
   let wheels=[];
+  let run = null;
+  let zoneMarks = [];
   let driving=false;
   let checkpoints=[];
   let currentCheckpoint=0;
@@ -471,39 +479,91 @@ export function createCity(canvas, onIssue) {
       scene.add(marker);
       return marker;
     });
-    checkpoints.forEach((marker,id)=>{marker.visible=id===currentCheckpoint;});
+    zoneMarks = driftZones.map(zone => {
+      const group = new THREE.Group();
+      const marker = new THREE.Mesh(new THREE.TorusGeometry(1.6,.065,8,32),new THREE.MeshBasicMaterial({color:'#fdd086'}));
+      marker.rotation.x = -Math.PI/2;
+      marker.position.set(zone.x,roadHeight+.08,zone.z);
+      group.add(marker);
+      for (const side of [-1,1]) {
+        const flag = new THREE.Mesh(new THREE.BoxGeometry(.15,1.42,.15),marker.material);
+        flag.position.set(zone.x+side*zone.nx*3.48,roadHeight+.71,zone.z+side*zone.nz*3.48);
+        group.add(flag);
+      }
+      scene.add(group);
+      return group;
+    });
+    refreshMarkers();
+  }
+
+  function refreshMarkers() {
+    checkpoints.forEach((marker,id)=>{marker.visible=!run && id===currentCheckpoint;});
+    zoneMarks.forEach((marker,id)=>{marker.visible=Boolean(run && id===run.next);});
   }
 
   async function openDistrict(reset = false) {
     if (!roadSetup) {
       roadSetup=Promise.all([load('district'),loader.loadAsync(asset('city-car.glb'))]).then(([,result])=>{
-        roadCar=result.scene;
-        wheels=['FL','FR','RL','RR'].map(id=>roadCar.getObjectByName('wheel_'+id)).filter(Boolean);
-        scene.add(roadCar);
+        const body = result.scene;
+        vehicles.set('hatch',{body,wheels:['FL','FR','RL','RR'].map(id=>body.getObjectByName('wheel_'+id)).filter(Boolean)});
+        for (const model of cars.slice(1)) vehicles.set(model.id,makeStreetCar(model));
+        cockpit=makeCockpit();
+        scene.add(cockpit.group);
+        setVehicle(profile.id);
         road();
         syncCar();
       }).catch(error=>{roadSetup=null;throw error;});
     }
     await roadSetup;
-    if (reset) {
-      car={...parked};
-      currentCheckpoint=0;
-      checkpoints.forEach((marker,index)=>{marker.visible=index===0;});
-      syncCar();
-    }
+    if (reset) resetDrive(false);
     await cast.show('roam');
     placeByCar();
     dirty=true;
   }
 
+  function setVehicle(id) {
+    const model = vehicles.get(id);
+    if (!model) return;
+    if (roadCar) scene.remove(roadCar);
+    profile = cars.find(entry=>entry.id===id);
+    roadCar = model.body;
+    wheels = model.wheels;
+    cockpit.paint.color.set(profile.color);
+    cockpit.wheel.rotation.z=0;
+    scene.add(roadCar);
+    car = {...car,speed:0,heading:car.yaw,slip:0};
+    syncCar();
+  }
+
+  function resetDrive(mission) {
+    car={...parked};
+    run=mission ? createDriftRun() : null;
+    currentCheckpoint=0;
+    refreshMarkers();
+    syncCar();
+    if (driving) drive(0,0,0);
+  }
+
+  function setCameraView(view) {
+    interior = view;
+    if (driving) drive(0,0,0);
+  }
+
   function syncCar() {
     roadCar.position.set(car.x,roadHeight+.035,car.z);
     roadCar.rotation.y=car.yaw;
+    const inside = driving && interior;
+    roadCar.visible = !inside;
+    cockpit.group.visible = inside;
+    cockpit.group.position.copy(roadCar.position);
+    cockpit.group.rotation.y=car.yaw;
+    dirty=true;
   }
 
   function placeByCar() {
     driving=false;
-    car={...car,speed:0};
+    car={...car,speed:0,heading:car.yaw,slip:0};
+    syncCar();
     const eye=[car.x-3.5*Math.cos(car.yaw),-(car.z+3.5*Math.sin(car.yaw)),1.68];
     const target=[car.x,-car.z,1.0];
     lookFrom(eye,target);
@@ -516,24 +576,35 @@ export function createCity(canvas, onIssue) {
     return true;
   }
 
-  function drive(leftRight,goStop,dt) {
+  function drive(leftRight,goStop,dt,handbrake=false) {
     if (!roadCar || !driving) return null;
-    car=driveStep(car,-leftRight,goStop,dt);
+    if (dt) car=driveStep(car,-leftRight,goStop,dt,handbrake,profile);
     syncCar();
     for (const wheel of wheels) wheel.rotateX(car.speed*dt/.30);
     const forward=new THREE.Vector3(Math.sin(car.yaw),0,Math.cos(car.yaw));
     const center=roadCar.position;
-    const desired=center.clone().addScaledVector(forward,-7).add(new THREE.Vector3(0,3.45,0));
-    camera.position.lerp(desired,dt===0 ? 1 : Math.min(1,dt*9));
-    camera.lookAt(center.clone().addScaledVector(forward,3).add(new THREE.Vector3(0,1.02,0)));
-    const target=routeCheckpoints[currentCheckpoint];
-    if(target && Math.hypot(car.x-target.x,car.z-target.z)<3.5) {
-      checkpoints[currentCheckpoint++].visible=false;
-      if (checkpoints[currentCheckpoint]) checkpoints[currentCheckpoint].visible=true;
+    const desired = interior
+      ? new THREE.Vector3(.31,1.19,-.02).applyAxisAngle(THREE.Object3D.DEFAULT_UP,car.yaw).add(center)
+      : center.clone().addScaledVector(forward,-7).add(new THREE.Vector3(0,3.45,0));
+    camera.position.lerp(desired,interior || dt===0 ? 1 : Math.min(1,dt*9));
+    if (interior) {
+      camera.lookAt(camera.position.clone().addScaledVector(forward,12).add(new THREE.Vector3(0,-1.15,0)));
+      cockpit.wheel.rotation.z=THREE.MathUtils.lerp(cockpit.wheel.rotation.z,leftRight*.85,Math.min(1,dt*12));
+      cockpit.needle.rotation.z=2.25-Math.min(1,Math.abs(car.speed)/profile.topSpeed)*4.5;
+    } else camera.lookAt(center.clone().addScaledVector(forward,3).add(new THREE.Vector3(0,1.02,0)));
+    if (run) {
+      const previous=run.next;
+      scoreDrift(run,car,dt);
+      if (previous!==run.next) refreshMarkers();
+    } else {
+      const target=routeCheckpoints[currentCheckpoint];
+      if(target && Math.hypot(car.x-target.x,car.z-target.z)<3.5) {
+        currentCheckpoint++;
+        refreshMarkers();
+      }
     }
-    dirty=true;
-    const next = routeCheckpoints[currentCheckpoint];
-    return {speed:Math.round(Math.abs(car.speed)*3.6),checkpoint:currentCheckpoint,
+    const next = (run ? driftZones[run.next] : routeCheckpoints[currentCheckpoint]);
+    return {speed:Math.round(Math.abs(car.speed)*3.6),checkpoint:currentCheckpoint,run,
       distance:next ? Math.round(Math.hypot(car.x-next.x,car.z-next.z)) : null};
   }
 
@@ -571,6 +642,6 @@ export function createCity(canvas, onIssue) {
 
   return { load, lookFrom, turn, walk, setStage, setDesign, clearDesign, draw, animate, marker, approach, distanceTo,
     preloadCast:cast.preload, showCast:cast.show, addPerson, removePerson:id=>{cast.removePerson(id);dirty=true;},
-    setMood, openDistrict, beginDrive, stopDrive:placeByCar, drive, openDirector, showDevelopment, focusPlot, orbitPlot };
+    setMood, openDistrict, beginDrive, stopDrive:placeByCar, drive, resetDrive, setVehicle, setCameraView, openDirector, showDevelopment, focusPlot, orbitPlot };
 
 }

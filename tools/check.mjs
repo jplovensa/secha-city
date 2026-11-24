@@ -177,3 +177,31 @@ for (const scope of mission.scopes) {
 }
 assert.ok(renovationPlan('layered','walnut','defer').high > mission.budget);
 console.log('Renovation estimates, move-in impacts, dependencies and exported brief passed.');
+
+const { cars, createDriftRun, driftTarget, driftZones, scoreDrift } = await import('../drift.js');
+for (const profile of cars) {
+  for (const handbrake of [false,true]) {
+    let car = {x:-3,z:42,yaw:Math.PI/2,speed:0};
+    const run = createDriftRun();
+    let progress = 31;
+    const distanceTo = distance => {
+      const point = roadPoint(distance);
+      return Math.hypot(car.x-point.x,car.z-point.z);
+    };
+    for (let tick=0; tick<2000 && run.next<driftZones.length; tick++) {
+      while (distanceTo(progress+.2)<distanceTo(progress)) progress+=.2;
+      const entry = driftZones[run.next].distance-12;
+      const sliding = handbrake && progress>entry-.6 && progress<entry+2;
+      const target = roadPoint(progress+(sliding?5:3));
+      const angle = Math.atan2(target.x-car.x,target.z-car.z)-car.yaw;
+      const steer = Math.max(-1,Math.min(1,Math.atan2(Math.sin(angle),Math.cos(angle))*3.5));
+      car = driveStep(car,steer,1,.025,sliding,profile);
+      scoreDrift(run,car,.025);
+      assert.ok(onRoad(car.x,car.z));
+    }
+    assert.equal(run.next,driftZones.length,profile.id+' can complete all bends');
+    if (handbrake) assert.ok(run.points>=driftTarget,profile.id+' can achieve the drift target');
+    else assert.equal(run.points,0,'Ordinary steering earns no drift points');
+  }
+}
+console.log('All three cars can complete and score the drift circuit.');

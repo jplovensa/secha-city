@@ -1,10 +1,12 @@
 import './style.css';
+import './driving.css';
 import { defaults, finishes, stages, stops, updateDesign, dividerLayout } from './chapter.js';
 import { createCity } from './scene.js';
 import { encounters } from './characters.js';
 import { handoverLine, newChapter, stageActions } from './gameplay.js';
 import { chapterFor, chapters, commissionBudget, packages, quote } from './campaign.js';
 import { routeCheckpoints } from './traffic.js';
+import { cars, driftTarget, driftZones } from './drift.js';
 import { makeDirector } from './director-ui.js';
 import { makeRenovation } from './renovation-ui.js';
 
@@ -427,6 +429,7 @@ async function go(next) {
   $('roam').hidden=true;
   $('story-toggle').hidden=true;
   $('city-menu').hidden=true;
+  driftMode=false;
   updateDrivingUI();
   approaching = false;
   $('waypoint').hidden = true;
@@ -640,20 +643,94 @@ $('cast-form').addEventListener('submit',async event=>{
 });
 
 let circuitProgress=0;
+let driftMode=false;
+let cockpitView=false;
+let selectedCar=cars[0].id;
+const garage = $('garage-dialog');
+
+try {
+  const saved = localStorage.getItem('secha-city-car');
+  if (cars.some(car=>car.id===saved)) selectedCar = saved;
+} catch { /* The garage still works for this session. */ }
+
+for (const car of cars) {
+  const label = document.createElement('label');
+  label.className = 'garage-car';
+  label.style.setProperty('--car-color',car.color);
+  label.innerHTML = `<input type="radio" name="city-car" value="${car.id}"><span><b>${car.name}</b><small>${car.description}</small></span>`;
+  $('garage-cars').append(label);
+}
+
+function openGarage() {
+  keys.clear();
+  garage.querySelector(`input[value="${selectedCar}"]`).checked = true;
+  $('drive-swap').hidden = !roaming;
+  garage.showModal();
+}
+
+function chooseCar(mode) {
+  selectedCar = garage.querySelector('input:checked').value;
+  try { localStorage.setItem('secha-city-car',selectedCar); }
+  catch { /* The selection can still be used. */ }
+  garage.close();
+  if (!roaming) {
+    openCity(true,mode);
+    return;
+  }
+  city.setVehicle(selectedCar);
+  if (mode !== 'swap') {
+    driftMode = mode === 'drift';
+    city.resetDrive(driftMode);
+    if (!driving) {
+      // Refresh the player's position at the starting line before entering.
+      city.stopDrive();
+      toggleVehicle();
+    }
+    updateDrivingUI();
+  }
+}
+
+function changeDrivingCamera() {
+  if (!driving) return;
+  cockpitView = !cockpitView;
+  city.setCameraView(cockpitView);
+  $('road-camera').textContent = cockpitView ? 'Chase view' : 'Cockpit view';
+}
+
+$('road-garage').addEventListener('click',openGarage);
+$('garage-close').addEventListener('click',()=>garage.close());
+$('drift-start').addEventListener('click',()=>chooseCar('drift'));
+$('drive-free').addEventListener('click',()=>chooseCar('free'));
+$('drive-swap').addEventListener('click',()=>chooseCar('swap'));
+$('road-camera').addEventListener('click',changeDrivingCamera);
+$('road-retry').addEventListener('click',()=>{
+  keys.clear();
+  city.resetDrive(true);
+  if (!driving) city.stopDrive();
+  updateDrivingUI();
+});
 function updateDrivingUI(speed=0) {
   $('speedometer').parentElement.hidden=!driving;
   $('speedometer').textContent=speed+' km/h';
   $('road-distance').textContent='';
   $('road-car').textContent=driving?'Get out':'Get in the car';
+  $('road-camera').hidden = !driving;
+  $('road-camera').textContent = cockpitView ? 'Chase view' : 'Cockpit view';
+  $('touch-drift').hidden = !driving;
+  $('road-retry').hidden = !driftMode;
+  $('drift-score').hidden = !driftMode;
+  $('roam-title').textContent = driftMode ? 'Perimeter drift' : 'The perimeter drive';
+  if (driftMode && !driving) $('road-task').textContent = 'Get in the car to continue the drift mission.';
   $('touch').setAttribute('aria-label',driving ? 'Driving controls' : 'Walking controls');
   const labels = driving ? ['Accelerate','Steer left','Reverse','Steer right'] : ['Walk forward','Step left','Walk back','Step right'];
   [...$('touch').children].forEach((control,index) => control.setAttribute('aria-label',labels[index]));
-  $('controls').innerHTML=driving ? '<b>W S</b> Accelerate / reverse <span>·</span> <b>A D</b> Steer <span>·</span> <b>E</b> Exit'
+  $('controls').innerHTML=driving ? '<b>W S</b> Accelerate / reverse <span>·</span> <b>A D</b> Steer <span>·</span> <b>Space</b> Handbrake <span>·</span> <b>C</b> Camera <span>·</span> <b>E</b> Exit'
     : roaming ? '<b>W A S D</b> Walk <span>·</span> Drag to look <span>·</span> <b>E</b> Get in'
     : '<b>W A S D</b> Walk <span>·</span> Drag to look <span>·</span> <b>E</b> Interact';
 }
 
-async function openCity(fromCover=false,driveNow=false) {
+async function openCity(fromCover=false,mode='walk') {
+  const driveNow = mode !== 'walk';
   if(guided || (!campaignDone && !fromCover && !managing) || roaming || !loaded) return;
   const now=++transition;
   keys.clear();
@@ -664,7 +741,7 @@ async function openCity(fromCover=false,driveNow=false) {
   if(fromCover) $('loader').textContent='Opening the city streets…';
   showNotice('Opening the city streets…');
   try {
-    await city.openDistrict(driveNow);
+    await city.openDistrict(true);
     if(now!==transition) return;
     if(managing) director.close();
     managing=false;
@@ -684,11 +761,15 @@ async function openCity(fromCover=false,driveNow=false) {
     $('panel').hidden=true;
     $('roam').hidden=false;
     $('cast-toggle').hidden=true;
+    driftMode = mode === 'drift';
+    city.setVehicle(selectedCar);
+    city.setCameraView(cockpitView);
+    city.resetDrive(driftMode);
+    circuitProgress=0;
     if (driveNow) {
-      circuitProgress=0;
       toggleVehicle();
     } else updateDrivingUI();
-    $('road-task').textContent=circuitProgress===3 ? 'All three landmarks visited. The city is open.' : 'Follow the perimeter road through three gold checkpoints.';
+    $('road-task').textContent = driftMode ? 'Follow the gold markers around the circuit.' : 'Follow the perimeter road through three gold checkpoints.';
     showNotice('');
   } catch (error) {
     console.warn(error);
@@ -720,7 +801,7 @@ async function openManagement() {
     experience.classList.remove('guided');
     experience.classList.add('management');
     $('cover').hidden=true;$('panel').hidden=true;$('roam').hidden=true;$('waypoint').hidden=true;
-    $('controls').hidden=true;$('touch').hidden=true;
+    $('controls').hidden=true;$('touch').hidden=true;$('touch-drift').hidden=true;
     $('controls').innerHTML='<b>W A S D</b> Walk <span>·</span> Drag to look';
     document.querySelector('.top-actions').hidden=false;
     $('cast-toggle').hidden=true;$('story-toggle').hidden=false;$('city-menu').hidden=true;
@@ -752,7 +833,7 @@ function toggleVehicle() {
 }
 $('city-toggle').addEventListener('click',()=>openCity());
 $('free-start').addEventListener('click',()=>openCity(true));
-$('drive-start').addEventListener('click',()=>openCity(true,true));
+$('drive-start').addEventListener('click',openGarage);
 $('story-toggle').addEventListener('click',()=>{
   $('map-toggle').hidden=false;
   go(Math.max(index,0));
@@ -761,7 +842,12 @@ $('road-car').addEventListener('click',toggleVehicle);
 
 const motionKeys = new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
 window.addEventListener('keydown',event => {
-  if (coverOpen || $('cast-dialog').open || event.altKey || event.metaKey || event.ctrlKey || event.target.closest?.('input,textarea,select')) return;
+  if (garage.open || coverOpen || $('cast-dialog').open || event.altKey || event.metaKey || event.ctrlKey || event.target.closest?.('input,textarea,select')) return;
+  if (driving && event.code === 'KeyC' && !event.repeat) changeDrivingCamera();
+  if (driving && event.code === 'Space') {
+    event.preventDefault();
+    keys.add('Space');
+  }
   if (event.code === 'KeyE' && !event.repeat) {
     if (renovation.active) renovation.interact();
     else if (roaming) toggleVehicle();
@@ -821,16 +907,25 @@ function frame(now) {
   lastFrame = now;
   if (!city || !loaded || guided || document.hidden) return;
   if (!coverOpen && driving) {
+    if (garage.open) { city.draw(); return; }
     const throttle=Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'));
     const steer=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
-    const hud=city.drive(steer,throttle,delta);
+    const hud=city.drive(steer,throttle,delta,keys.has('Space'));
     if(hud) {
       $('speedometer').textContent=hud.speed+' km/h';
       circuitProgress=hud.checkpoint;
-      const destination=routeCheckpoints[circuitProgress];
-      const task = destination ? circuitProgress+' / 3 landmarks · Next: '+destination.name : '3 / 3 landmarks visited. Keep driving to explore.';
+      const zone = hud.run && driftZones[hud.run.next];
+      const destination = routeCheckpoints[circuitProgress];
+      const task = hud.run ? zone ? `${hud.run.next} / ${driftZones.length} corners · ${zone.name}. Tap the handbrake while turning.`
+        : hud.run.points >= driftTarget ? 'Mission complete.' : 'Circuit complete. Restart to beat the drift target.'
+        : destination ? circuitProgress+' / 3 landmarks · Next: '+destination.name : '3 / 3 landmarks visited. Keep driving to explore.';
       if ($('road-task').textContent !== task) $('road-task').textContent=task;
-      $('road-distance').textContent=hud.distance === null ? 'Circuit complete' : hud.distance+' m to checkpoint';
+      $('road-distance').textContent = hud.distance === null ? 'Circuit complete' :
+        hud.run?.inside ? 'Drift zone' : hud.distance + (hud.run ? ' m to drift zone' : ' m to checkpoint');
+      if (hud.run) {
+        const points = Math.round(hud.run.slide);
+        $('drift-score').textContent = `${hud.run.points} / ${driftTarget} pts${points ? ' · +' + points + ' sliding' : ''}`;
+      }
     }
   } else if (!coverOpen) {
     city.animate(delta);
