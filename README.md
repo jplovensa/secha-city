@@ -2,27 +2,15 @@
 
 [Play SECHA City](https://jplovensa.github.io/secha-city/)
 
-## Renovation mission
+## The House Opens at Dusk
 
-Start the renovation mission from the city menu. Walk from the gallery portal into Rumah Teduh, inspect the bedroom and choose a scope and screen finish against a single IDR 30 million budget and move-in date. Approve the illustrative quote, then compare waiting, switching finishes and fitting the screen after move-in. Each option shows its cost, handover date, dependencies and next owner.
+SECHA City is a continuous Babylon.js world built from the original SketchUp district, arrival gardens, Wayang Gallery, Material Library and Rumah Teduh interior. The current commission begins with Josephine at reception. Visit Ibu at Rumah Teduh, bring her brief to Dina at the Material Library, and choose a timber screen. Return to reveal the finished room at dusk. The selected screen, lighting, fee and trust outcome change with the decision, and the browser saves the commission.
 
-Copy or download the finished brief to bring to a Studio+ consultation. The mission saves in the current browser. **Play mission without 3D** opens the same decisions and brief if WebGL is unavailable.
+Walk with **WASD** or the touch controls and drag the view to look around. Press **E** to interact. **Follow route** walks to the current objective through the connected city. The compass map shows landmarks and the next stop.
 
-`renovation-data.js` holds the scenario. `renovation-mission.js` calculates the quote and timeline. `renovation-ui.js` handles mission steps, room previews and brief export. Timeline lead times use calendar days and overlap room prep with procurement.
+The garage is by the perimeter road, behind reception. Choose the City Hatch, Terracotta Coupé or Pandan Touring. Press **C** to switch between cockpit and chase views and use **Space** for the handbrake. The drift challenge starts from the driving controls.
 
-## Central City
-
-Open **Run Central City** to manage the interior district. The city starts with four vacant plots, one designer and 1,200 credits. Hire a builder or designer, choose a pavilion and shell material, assign an available worker, furnish the finished room and open it. Visitors generate revenue for the next sites. Drag over a plot to orbit it, scroll to zoom, or explore a built pavilion at eye level. City operations are saved in the current browser.
-
-## Story missions
-
-1. **A Room for Two** — follow Josephine’s brief through the garden and carved wayang gallery, then design a room for Ibu in Rumah Teduh.
-2. **The First Commission** — choose timber, a divider and lighting within 850 SECHA credits. Compare the finished package with the original room.
-3. **Opening Night** — set the city lighting, add guests to the salon and open the studio.
-
-Choose **Drive the city** to visit the garage. Pick a City Hatch, Terracotta Coupé or Pandan Touring, then start the four-corner **Perimeter drift** mission or choose **Free drive**. Tap **Space** while turning to break traction and release it to regain grip. Slides inside marked zones score towards the 100-point target. The cockpit and chase views are available via **C** or the camera button. Touch devices have a handbrake button and the same camera and garage controls. Choose **Walk the streets** to explore on foot and get into the parked car. Follow the marked perimeter through South Gate, the Material Lab and Garden Villa. The street scene reuses the Compact Home, Family Townhouse, Garden Villa and Kitchen and Bath Lab exteriors from the SketchUp master.
-
-Walk with **WASD**, drag to look, and press **E** to interact. Use **Approach** to walk up to a character automatically. In the car, **W/S** accelerate or reverse, **A/D** steer, and **E** exits. The directional buttons support touchscreens. The Cast menu places a character at a clear spot in the current room. Route returns to locations reached in the story. The guided edition offers the story and design tasks without 3D. Room design settings are saved in the browser.
+The former preview URL redirects to the main city. The earlier city-builder and story menus remain in repository history.
 
 ## Development
 
@@ -39,11 +27,4 @@ Story dialogue appears as text. The mission’s optional Pandan Walk audio compa
 - [Five-Door Hatchback by tevy](https://tevy.dev/models/hatchback), CC0 1.0.
 
 - [Classic 1970s Coupé](https://tevy.dev/models/classic-coupe) and [Family Estate Car](https://tevy.dev/models/estate-car) by tevy, CC0 1.0. The build downloads and verifies a pinned version of each model and serves both from the site.
-
-## Keys by Six · Babylon.js neighbourhood
-
-Open **Play Keys by Six** from the city menu. Walk into the studio to accept the commission. Pick up a car, park by Courtyard Apartments, inspect the bedroom, then drive to the Material Lab. Choose whether to substitute the delayed walnut, defer the screen, or reschedule handover. Return to the apartment to close the job and see the finished room. Progress and the chosen vehicle are saved in the browser.
-
-Use **WASD** to walk or drive, drag the view on foot, press **E** to interact, **C** to change the driving camera, and **Space** for the handbrake. The garage is beside the studio. **Drift challenge** is available from the car. Touch players can use the displayed controls. The route, vehicle handling, drift scoring, and vehicle model files are shared with the original game.
-
-The preview uses Babylon.js and WebGL. It includes one connected neighbourhood and one complete commission. The original story, renovation, and city-builder modes are available via the City menu. Babylon’s compressed-model decoders are served alongside the preview.
+- [Kloofendal 48d Partly Cloudy](https://polyhaven.com/a/kloofendal_48d_partly_cloudy) daylight HDRI by Greg Zaal via Poly Haven, CC0 1.0.

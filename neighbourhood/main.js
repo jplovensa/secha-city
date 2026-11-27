@@ -7,13 +7,19 @@ import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight.js';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color.js';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder.js';
+import { HDRCubeTexture } from '@babylonjs/core/Materials/Textures/hdrCubeTexture.js';
+import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration.js';
+import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator.js';
+import { RenderTargetTexture } from '@babylonjs/core/Materials/Textures/renderTargetTexture.js';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial.js';
 import { vehicleAssets } from '../vehicle-data.js';
 import { cars, createDriftRun, driftTarget, driftZones, scoreDrift } from '../drift.js';
 import { driveStep, roadLength, roadPoint } from '../traffic.js';
 import { advanceJob, choices, objective, restoreJob, sites } from './mission.js';
-import { addCast, loadDistrict, loadVehicle } from './assets.js';
-import { authoredBlocks, makeNeighbourhood, walkPosition } from './world.js';
+import { asset, loadArchitecture, loadVehicle } from './assets.js';
+import { loadCast } from './cast.js';
+import { cityLandmarks, floorHeight, makeNeighbourhood } from './world.js';
+import { makeNavigation } from './navigation.js';
 
 const $=id=>document.getElementById(id);
 const canvas=$('city-world');
@@ -23,15 +29,16 @@ const map=mapCanvas.getContext('2d');
 const keys=new Set();
 const pressed=new Map();
 const garage=new Map();
-const saveKey='secha-neighbourhood-keys-by-six-v1';
-const parked={x:-14,z:42,yaw:Math.PI/2,speed:0};
+const saveKey='secha-city-house-at-dusk-v1';
+const parked={x:0,z:42,yaw:Math.PI/2,speed:0};
 const rupiah=new Intl.NumberFormat('en-GB');
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 const wheelInput=(positive,negative)=>Number(keys.has(positive))-Number(keys.has(negative));
 
-let engine,scene,camera,world,vehicle,driftMarker;
+let engine,scene,camera,world,vehicle,driftMarker,cast,nav,sun,sky,shadows;
+let route=[],eyeHeight=1.70,qualityAt=0;
 let ready=false,driving=false,cockpit=false,carLoading=false;
-let car={...parked}, walker={x:-14,z:36.2,yaw:Math.PI,pitch:-.04};
+let car={...parked}, walker={x:.15,z:36.8,yaw:Math.PI,pitch:-.04};
 let profile=cars[0], run=null, drag=null, mapAt=0;
 let job=restoreJob(null);
 try {
@@ -57,7 +64,8 @@ function refreshJob() {
     putText('result','Handover complete · IDR '+rupiah.format(fee)+' · Trust '+(trust>0?'+':'')+trust);
   }
   world.mark(current.site);
-  world.applyFinish(job.step==='complete'?outcome():null);
+  route=[];
+  updateRoom();
 }
 function changeJob(site,choice) {
   job=advanceJob(job,site,choice);
@@ -92,28 +100,39 @@ function openDialog(kicker,title,copy,options) {
   if(!modal.open) modal.showModal();
 }
 const close=()=>modal.close();
+function updateRoom() {
+  const dusk=job.step==='complete';
+  const selection=job.step==='deliver'||dusk?outcome():null;
+  world.applyFinish(selection,dusk);
+  sun.intensity=dusk?.31:1.9;
+  sun.diffuse=Color3.FromHexString(dusk?'#ffac73':'#fff0da').toLinearSpace();
+  sky.intensity=dusk?.25:.63;
+  scene.environmentIntensity=dusk?.24:.88;
+  scene.fogColor.set(...(dusk?[.41,.40,.47]:[.72,.78,.83]));
+  scene.clearColor.set(scene.fogColor.r,scene.fogColor.g,scene.fogColor.b,1);
+}
+
 function missionAction(site) {
-  if (job.step==='offer' && site==='studio') {
-    openDialog('SECHA Studio','The client needs their keys by six',
-      'A client is moving into Courtyard Apartments at 18:00. Inspect their bedroom and confirm the specified walnut privacy screen. Your car is parked by the studio.',
-      [{label:'Take the commission',action:()=>{changeJob(site);close();}}]);
-  } else if (job.step==='inspect' && site==='client') {
-    openDialog('Courtyard Apartments','One thing left to fit',
-      'The bed and lights are ready. The client asked for a walnut screen between the window and the bed. Check stock at the Material Lab before confirming the handover.',
-      [{label:'Check stock at the Material Lab',action:()=>{changeJob(site);close();}}]);
-  } else if (job.step==='source' && site==='lab') {
-    openDialog('Material Lab','The walnut delivery is late',
-      'Walnut won’t arrive until tomorrow morning. The client has asked you to recommend a plan before they leave for the apartment.',
+  if(job.step==='offer'&&site==='studio') {
+    openDialog('Josephine · SECHA Reception','The first guest is coming at dusk',
+      'Ibu wants a room she can read in without feeling on display. Walk to Rumah Teduh, look at the view from the entrance and decide what the timber screen needs to do.',
+      [{label:'Accept the commission',action:()=>{changeJob(site);close();}}]);
+  } else if(job.step==='inspect'&&site==='client') {
+    openDialog('Ibu · Rumah Teduh','Light without being on display',
+      'From here I can see the entire bed from the lounge. I’d like a little privacy and enough light to read by. Dina has three approaches ready at the Material Library.',
+      [{label:'Take the brief to Dina',action:()=>{changeJob(site);close();}}]);
+  } else if(job.step==='source'&&site==='lab') {
+    openDialog('Dina · Material Library','Choose how the room should feel',
+      'We’re keeping the bed, floor and joinery. Pick a screen for the sightline you saw in the room.',
       choices.map(option=>({
         label:option.label,
-        detail:option.detail+' Fee IDR '+rupiah.format(option.fee)+' · Trust '+(option.trust>0?'+':'')+option.trust+'.',
+        detail:option.detail+' Fee IDR '+rupiah.format(option.fee)+' · Trust +'+option.trust+'.',
         action:()=>{changeJob(site,option.id);close();},
       })));
-  } else if (job.step==='deliver' && site==='client') {
-    const result=outcome();
-    openDialog('Courtyard Apartments','Confirm the handover',
-      'Agreed handover: '+result.handover+'. Screen: '+result.finish+'. Confirm to collect your fee and walk through the delivered room.',
-      [{label:'Confirm handover',action:()=>{changeJob(site);close();}}]);
+  } else if(job.step==='deliver'&&site==='client') {
+    openDialog('Ibu · Rumah Teduh','See the room at dusk',
+      outcome().finish+' is installed. Open the room to see how your choice feels with the lamps on.',
+      [{label:'Open the room',action:()=>{changeJob(site);close();}}]);
   }
 }
 
@@ -168,7 +187,7 @@ function useCar() {
     if (!canExit()) return;
     const sideX=-Math.cos(car.yaw),sideZ=Math.sin(car.yaw);
     const towardInside=car.x*sideX+car.z*sideZ<0?1:-1;
-    const [x,z]=walkPosition(car.x,car.z,sideX*towardInside*1.72,sideZ*towardInside*1.72,world.obstacles);
+    const [x,z]=nav.walk(car.x,car.z,sideX*towardInside*1.72,sideZ*towardInside*1.72);
     walker={x,z,yaw:car.yaw,pitch:-.07};
     car={...car,speed:0,slip:0,heading:car.yaw};
     driving=false;
@@ -176,12 +195,13 @@ function useCar() {
   } else {
     if (distance(car,walker)>3.25 || carLoading) return;
     driving=true;
+    route=[];
   }
   resetInput();
 }
 function nearSite() {
   const site=objective(job).site;
-  return site && distance(walker,sites[site])<2.2 ? site : null;
+  return site && distance(walker,sites[site])<2.1 && nav.line(walker,sites[site]) ? site : null;
 }
 function action() {
   if (!ready || modal.open || carLoading) return;
@@ -195,13 +215,15 @@ function refreshControls() {
   const site=!driving && nearSite();
   const nearCar=distance(car,walker)<=3.25;
   const label=driving ? canExit()?'Get out':'Slow down to exit' : site ? {
-    offer:'Accept commission',inspect:'Inspect bedroom',source:'Check available finishes',deliver:'Hand over apartment',
+    offer:'Talk to Josephine',inspect:'Talk to Ibu',source:'Talk to Dina',deliver:'Review the room with Ibu',
   }[job.step] : 'Get in car';
   $('interact').hidden=!driving && !site && !nearCar;
   const disabled=carLoading || (driving && !canExit());
   if ($('interact').disabled!==disabled) $('interact').disabled=disabled;
   putText('interact',label);
   $('garage').hidden=driving || distance(walker,{x:parked.x,z:parked.z})>9;
+  $('follow').hidden=driving||!objective(job).site||Boolean(site);
+  putText('follow',route.length?'Stop following':'Follow route');
   $('camera').hidden=$('drift').hidden=$('brake').hidden=$('drive-hud').hidden=!driving;
   putText('camera',cockpit?'Chase view':'Cockpit view');
   putText('drift',run?'Leave drift':'Drift challenge');
@@ -224,15 +246,41 @@ function refreshDriftMarker() {
   if(target) driftMarker.position.set(target.x,.11,target.z);
 }
 
+function followRoute() {
+  const site=objective(job).site;
+  if(!site||driving||modal.open) return;
+  if(route.length) {route=[];return;}
+  route=nav.route(walker,sites[site]);
+  if(!route.length) putText('destination','Walk clear of the nearest obstacle, then try again.');
+}
+
 function updateWalking(dt) {
   const forward=wheelInput('KeyW','KeyS'),right=wheelInput('KeyD','KeyA');
   const turn=wheelInput('ArrowRight','ArrowLeft');
+  if(turn||forward||right) route=[];
   walker.yaw-=turn*dt*1.8;
+  if(route.length) {
+    const target=route[0];
+    const dx=target.x-walker.x,dz=target.z-walker.z;
+    const remaining=Math.hypot(dx,dz);
+    if(remaining<.025||nearSite()) {
+      if(nearSite()) route=[];
+      else route.shift();
+      return;
+    }
+    const yaw=Math.atan2(dx,dz);
+    const delta=Math.atan2(Math.sin(yaw-walker.yaw),Math.cos(yaw-walker.yaw));
+    walker.yaw+=Math.max(-dt*3,Math.min(dt*3,delta));
+    const stride=Math.min(remaining,dt*3.55)/remaining;
+    const [x,z]=nav.walk(walker.x,walker.z,dx*stride,dz*stride);
+    if(x===walker.x&&z===walker.z&&dt>0) {route=[];return;}
+    walker.x=x;walker.z=z;
+    return;
+  }
   const length=3.45*dt/Math.max(1,Math.hypot(forward,right));
-  const [x,z]=walkPosition(walker.x,walker.z,(Math.sin(walker.yaw)*forward-Math.cos(walker.yaw)*right)*length,
-    (Math.cos(walker.yaw)*forward+Math.sin(walker.yaw)*right)*length,world.obstacles);
-  walker.x=x;
-  walker.z=z;
+  const [x,z]=nav.walk(walker.x,walker.z,(Math.sin(walker.yaw)*forward-Math.cos(walker.yaw)*right)*length,
+    (Math.cos(walker.yaw)*forward+Math.sin(walker.yaw)*right)*length);
+  walker.x=x;walker.z=z;
 }
 function updateDriving(dt) {
   const steer=wheelInput('KeyD','KeyA')+wheelInput('ArrowRight','ArrowLeft');
@@ -244,7 +292,7 @@ function updateDriving(dt) {
     if(previous!==run.next) refreshDriftMarker();
   }
 }
-function updateCamera() {
+function updateCamera(dt=1) {
   const body=driving?car:walker;
   const forward=new Vector3(Math.sin(body.yaw),0,Math.cos(body.yaw));
   if(driving && cockpit) {
@@ -252,11 +300,12 @@ function updateCamera() {
     camera.position.copyFrom(Vector3.TransformCoordinates(vehicle.eye,vehicle.root.getWorldMatrix()));
     camera.setTarget(camera.position.add(forward.scale(12)).add(new Vector3(0,-1.25,0)));
   } else if(driving) {
-    const origin=new Vector3(car.x,.24,car.z);
+    const origin=new Vector3(car.x,.46,car.z);
     camera.position.copyFrom(origin.subtract(forward.scale(6.7)).add(new Vector3(0,3.4,0)));
     camera.setTarget(origin.add(forward.scale(2.9)).add(new Vector3(0,.78,0)));
   } else {
-    camera.position.set(walker.x,1.66,walker.z);
+    eyeHeight+=(floorHeight(walker.x,walker.z)+1.64-eyeHeight)*Math.min(1,dt*7);
+    camera.position.set(walker.x,eyeHeight,walker.z);
     camera.setTarget(camera.position.add(forward).add(new Vector3(0,walker.pitch,0)));
   }
 }
@@ -275,7 +324,13 @@ function drawMap() {
   }
   map.stroke();
   map.fillStyle='#496052';
-  authoredBlocks.forEach(([left,right,back,front])=>map.fillRect(mapX(left),mapY(back),(right-left)*2.70,(front-back)*2.70));
+  cityLandmarks.forEach(([left,right,back,front])=>map.fillRect(mapX(left),mapY(back),(right-left)*2.70,(front-back)*2.70));
+  if(route.length) {
+    map.strokeStyle='#ead494';map.lineWidth=3;
+    map.beginPath();map.moveTo(mapX(walker.x),mapY(walker.z));
+    for(const point of route) map.lineTo(mapX(point.x),mapY(point.z));
+    map.stroke();
+  }
   const next=objective(job).site;
   for(const [id,site] of Object.entries(sites)) {
     map.fillStyle=next===id?'#f2c477':'#a3ae8a';
@@ -300,6 +355,7 @@ function drawMap() {
 
 $('interact').addEventListener('click',action);
 $('garage').addEventListener('click',showGarage);
+$('follow').addEventListener('click',followRoute);
 $('camera').addEventListener('click',changeCamera);
 $('drift').addEventListener('click',toggleDrift);
 modal.addEventListener('close',resetInput);
@@ -335,6 +391,7 @@ for(const button of document.querySelectorAll('[data-key]')) {
 canvas.addEventListener('pointerdown',event=>{
   if(driving || modal.open || !ready || event.button!==0) return;
   canvas.setPointerCapture(event.pointerId);
+  route=[];
   drag={pointer:event.pointerId,x:event.clientX,y:event.clientY};
 });
 canvas.addEventListener('pointermove',event=>{
@@ -351,21 +408,38 @@ async function start() {
   engine.setHardwareScalingLevel(Math.max(.85,1/Math.min(devicePixelRatio,1.4)));
   scene=new Scene(engine);
   scene.useRightHandedSystem=true;
-  scene.clearColor=new Color4(.79,.78,.68,1);
+  scene.clearColor=new Color4(.72,.78,.83,1);
   scene.fogMode=Scene.FOGMODE_EXP2;
-  scene.fogDensity=.012;
-  scene.fogColor=new Color3(.79,.78,.68);
+  scene.fogDensity=.008;
+  scene.fogColor=new Color3(.72,.78,.83);
+  scene.imageProcessingConfiguration.toneMappingEnabled=true;
+  scene.imageProcessingConfiguration.toneMappingType=ImageProcessingConfiguration.TONEMAPPING_ACES;
+  scene.imageProcessingConfiguration.exposure=1.16;
+  scene.imageProcessingConfiguration.contrast=1.10;
+  const environment=new HDRCubeTexture(asset('garage/daylight.hdr'),scene,128,false,true,false,true);
+  scene.environmentTexture=environment;
+  scene.environmentIntensity=.88;
   camera=new FreeCamera('Player camera',new Vector3(0,1.65,0),scene);
   camera.minZ=.05;
   camera.maxZ=125;
   camera.fov=innerWidth<650?1.07:.98;
   scene.activeCamera=camera;
-  const sky=new HemisphericLight('Open sky',new Vector3(.2,1,.3),scene);
-  sky.intensity=.79;
+  sky=new HemisphericLight('Open sky',new Vector3(.2,1,.3),scene);
+  sky.intensity=.63;
   sky.groundColor=new Color3(.45,.40,.31);
-  const sun=new DirectionalLight('Afternoon sun',new Vector3(-.65,-1,-.42),scene);
-  sun.diffuse=new Color3(1,.91,.77);
-  sun.intensity=.69;
+  sun=new DirectionalLight('Afternoon sun',new Vector3(-.62,-1,-.44),scene);
+  sun.position.set(37,60,25);
+  sun.shadowFrustumSize=112;
+  sun.shadowMinZ=5;
+  sun.shadowMaxZ=130;
+  sun.intensity=1.9;
+  shadows=new ShadowGenerator(innerWidth<650?1024:2048,sun);
+  shadows.usePercentageCloserFiltering=true;
+  shadows.filteringQuality=ShadowGenerator.QUALITY_LOW;
+  shadows.bias=.0009;
+  shadows.normalBias=.015;
+  shadows.setDarkness(.22);
+  shadows.getShadowMap().refreshRate=RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
   world=makeNeighbourhood(scene);
   driftMarker=MeshBuilder.CreateTorus('Drift corner',{diameter:3.25,thickness:.11,tessellation:32},scene);
   driftMarker.material=new StandardMaterial('Amber drift marker',scene);
@@ -379,26 +453,41 @@ async function start() {
   updateCamera();
   engine.runRenderLoop(()=>{
     if(document.hidden) return;
-    const dt=Math.min(engine.getDeltaTime()/1000,.05);
+    const dt=Math.min(engine.getDeltaTime()/1000,.24);
     if(ready && !modal.open) {
-      if(driving) updateDriving(dt);
-      else updateWalking(dt);
-      updateCamera();
+      // Preserve the road and doorway collision step size during a slow render.
+      const steps=Math.max(1,Math.ceil(dt/.04));
+      for(let i=0;i<steps;i++) {
+        if(driving) updateDriving(dt/steps);
+        else updateWalking(dt/steps);
+      }
+      updateCamera(dt);
+      cast.update(objective(job).site,driving?car:walker,dt);
       refreshControls();
       const now=performance.now();
       if(now-mapAt>75) {drawMap();mapAt=now;}
+      if(now-qualityAt>4500) {
+        qualityAt=now;
+        const scale=engine.getHardwareScalingLevel();
+        if(engine.getFps()<26&&scale<1.85) engine.setHardwareScalingLevel(Math.min(1.85,scale+.18));
+      }
     }
     scene.render();
   });
-  [vehicle]=await Promise.all([carFor(profile),loadDistrict(scene)]);
+  const results=await Promise.all([
+    carFor(profile),loadCast(scene),
+    ...['arrival','gallery','teduh','district'].map(name=>loadArchitecture(name,scene,shadows)),
+  ]);
+  [vehicle,cast]=results;
+  nav=makeNavigation(results.slice(2).flat());
+  shadows.getShadowMap().resetRefreshCounter();
   vehicle.sync(car,false,0,0);
   vehicle.root.setEnabled(true);
-  addCast(scene).catch(error=>console.warn('The neighbourhood crew could not load.',error));
   ready=true;
   $('controls').hidden=$('touch').hidden=false;
   refreshJob();
 }
 start().catch(error=>{
   console.error(error);
-  putText('objective','The neighbourhood could not load. Reload to retry or return to the City menu.');
+  putText('objective','The city could not load. Reload the page to retry.');
 });

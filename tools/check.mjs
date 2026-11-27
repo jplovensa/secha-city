@@ -146,7 +146,7 @@ const initial=city.credits;
 assert.equal(simulate(city,21252),true);
 assert.equal(city.credits,initial+44);
 assert.equal(city.visitors,6);
-assert.ok((await readFile(new URL('basis/basis_transcoder.wasm',dist))).length>100000);
+assert.ok((await readFile(new URL('garage/daylight.hdr',dist))).length>100000);
 const {default:capture}=await import('../captured-walk.js');
 assert.ok(capture.rate>1 && capture.rate<2);
 assert.ok(capture.clip.tracks.some(track=>track.name==='calf_l.quaternion'));
@@ -213,8 +213,8 @@ console.log('All three cars can complete and score the drift circuit.');
 
 const { advanceJob, choices: commissionChoices, objective, restoreJob, sites } = await import('../neighbourhood/mission.js');
 const preview = await readFile(new URL('neighbourhood.html',dist),'utf8');
-assert.match(index,/href="\.\/neighbourhood\.html"/);
-assert.match(preview,/type="module" crossorigin src="\.\/assets\//);
+assert.match(index,/The House Opens at Dusk/);
+assert.match(preview,/url=\.\//);
 for (const site of Object.values(sites)) assert.ok(onRoad(...site.parking));
 for (const choice of commissionChoices) {
   let job = restoreJob(null);
@@ -233,4 +233,15 @@ for (const choice of commissionChoices) {
   assert.deepEqual(restoreJob(job),job);
 }
 assert.deepEqual(restoreJob({step:'complete',choice:'bad'}),{step:'source',choice:null});
-console.log('Babylon.js preview entry, street parking and all three commission outcomes passed.');
+console.log('Babylon.js city entry, old-link redirect, street parking and all three commission outcomes passed.');
+
+const { makeNavigation } = await import('../neighbourhood/navigation.js');
+const navigation = makeNavigation([[-1,1,-1,1]]);
+assert.deepEqual(navigation.walk(-1.31,0,.2,0),[-1.31,0]);
+const from={x:-3,z:0}, to={x:3,z:0};
+assert.equal(navigation.line(from,to),false);
+const route=navigation.route(from,to);
+assert.ok(route.length>=2);
+for (const [i,point] of route.entries()) assert.ok(navigation.line(i?route[i-1]:from,point));
+assert.ok(Math.hypot(route.at(-1).x-to.x,route.at(-1).z-to.z)<1.2);
+console.log('Navigation collision and route following around obstructions passed.');

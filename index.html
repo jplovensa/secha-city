@@ -1,112 +1,53 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#24251c">
-  <meta name="description" content="Walk through SECHA City and turn a simulated renovation into a brief for your Studio+ consultation.">
-  <title>SECHA City · The House of Five Senses</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1e2921">
+<title>The House Opens at Dusk · SECHA City</title>
+<meta name="description" content="Walk through the rebuilt Babylon.js SECHA City and get Rumah Teduh ready for its first guest.">
+<script type="module" src="./neighbourhood/main.js"></script>
 </head>
 <body>
-  <main id="experience">
-    <canvas id="world" aria-label="First-person view of SECHA City" tabindex="0"></canvas>
-    <div class="wash"></div>
-    <header class="top">
-      <div class="brand"><img class="brand-mark" src="%BASE_URL%secha-logo.png" alt=""><span>SECHA <b>CITY</b><small>THE HOUSE OF FIVE SENSES</small></span></div>
-      <div class="top-actions" hidden>
-        <button id="city-menu" type="button" hidden>City menu</button>
-        <button id="manage-toggle" type="button" hidden>City builder</button>
-        <button id="cast-toggle" type="button">Cast</button>
-        <button id="city-toggle" type="button" hidden>City streets</button>
-        <button id="story-toggle" type="button" hidden>Story</button>
-        <button id="map-toggle" type="button" aria-expanded="false" aria-controls="map">Route</button>
-      </div>
-    </header>
-    <section id="cover" class="cover" aria-labelledby="cover-title">
-      <div class="cover-inner">
-        <p class="eyebrow">SECHA City <span></span> Interior district</p>
-        <h1 id="cover-title">Central<br><em>City.</em></h1>
-        <p>Walk into Rumah Teduh and plan a bedroom renovation. Work through a real trade-off and leave with a brief for Studio+.</p>
-        <button id="renovation-start" class="primary" type="button" disabled>Start renovation mission</button>
-        <small id="loader" role="status">Opening the garden and reception.</small>
-        <button id="renovation-guided" class="soft" type="button">Play mission without 3D</button>
-        <button id="manage-start" class="soft" type="button" disabled>Run Central City</button>
-        <button id="enter" class="soft" type="button" disabled>Story missions</button>
-        <a class="soft" href="./neighbourhood.html">Play Keys by Six</a>
-        <button id="drive-start" class="soft" type="button" disabled>Drive the city</button>
-        <button id="free-start" class="soft" type="button" disabled>Walk the streets</button>
-        <button id="guided" class="soft" type="button">Read the guided edition</button>
-      </div>
-    </section>
-    <nav id="map" class="map" aria-label="Chapter route" hidden></nav>
-    <dialog id="cast-dialog" class="cast-dialog" aria-labelledby="cast-title">
-      <header><h2 id="cast-title">Add character</h2><button id="cast-close" type="button" aria-label="Close cast editor">×</button></header>
-      <form id="cast-form">
-        <label for="guest-name">Name</label><input id="guest-name" required maxlength="32" placeholder="Studio guest">
-        <label for="guest-kind">Character</label>
-        <select id="guest-kind"><option value="guest">Studio guest</option><option value="visitor">Garden visitor</option></select>
-        <button id="add-guest" class="primary" type="submit">Place character</button>
-      </form>
-      <p id="cast-status" role="status"></p>
-      <ul id="cast-list"></ul>
-    </dialog>
-    <section id="renovation" class="panel renovation-panel" aria-labelledby="renovation-title" hidden></section>
-    <section id="director" class="panel director" aria-labelledby="director-title" hidden></section>
-    <dialog id="garage-dialog" class="cast-dialog garage-dialog" aria-labelledby="garage-title">
-      <header><h2 id="garage-title">City garage</h2><button id="garage-close" type="button" aria-label="Close garage">×</button></header>
-      <fieldset id="garage-cars"><legend>Choose a car</legend></fieldset>
-      <div class="drive-actions">
-        <button id="drift-start" class="primary" type="button">Start drift mission</button>
-        <button id="drive-free" class="soft" type="button">Free drive</button>
-        <button id="drive-swap" class="primary" type="button" hidden>Switch car</button>
-      </div>
-    </dialog>
-    <section id="roam" class="panel" aria-labelledby="roam-title" hidden>
-      <p class="eyebrow">SECHA City</p><h2 id="roam-title">The perimeter drive</h2>
-      <p id="road-task" aria-live="polite"></p>
-      <div class="drive-readout" hidden><span id="speedometer"></span><span id="road-distance"></span></div>
-      <p id="drift-score" hidden></p>
-      <div class="drive-actions">
-        <button id="road-car" class="primary" type="button">Get in the car</button>
-        <button id="road-camera" class="soft" type="button" hidden>Cockpit view</button>
-        <button id="road-garage" class="soft" type="button">Garage</button>
-        <button id="road-retry" class="soft" type="button" hidden>Restart drift</button>
-      </div>
-    </section>
-    <div id="waypoint" class="waypoint" hidden aria-hidden="true"><span></span></div>
-    <div id="reticle" aria-hidden="true" hidden></div>
-    <p id="controls" class="controls" hidden><b>W A S D</b> Walk <span>·</span> Drag to look <span>·</span> <b>E</b> Interact</p>
-    <div id="touch" aria-label="Walking controls" hidden>
-      <button type="button" data-move="KeyW" aria-label="Walk forward">↑</button>
-      <button type="button" data-move="KeyA" aria-label="Step left">←</button>
-      <button type="button" data-move="KeyS" aria-label="Walk back">↓</button>
-      <button type="button" data-move="KeyD" aria-label="Step right">→</button>
-    </div>
-    <button id="touch-drift" class="soft" data-move="Space" type="button" hidden>Handbrake</button>
-    <section id="panel" class="panel" aria-labelledby="stop-name" hidden>
-      <header id="panel-header">
-        <div><p class="eyebrow" id="stop-type"></p><h2 id="stop-name"></h2></div>
-        <button id="panel-toggle" class="icon" type="button" aria-controls="panel-body" aria-expanded="true" aria-label="Minimise story">−</button>
-      </header>
-      <div id="panel-body">
-        <p id="stop-copy"></p>
-        <div id="dialogue" class="dialogue" hidden>
-          <b id="speaker"></b>
-          <p id="speech"></p>
-        </div>
-        <p id="objective" class="objective" aria-live="polite"></p>
-        <div id="story"></div>
-        <div id="design" hidden>
-          <div class="slider"><label for="spacing">Divider spacing</label><output id="spacing-value" for="spacing"></output><input id="spacing" type="range" min="12" max="28" step="1" value="16"></div>
-          <div class="slider"><label for="daylight">Light at the screen</label><output id="light-value" for="daylight"></output><input id="daylight" type="range" min="0" max="100" step="5" value="55"></div>
-          <div class="compare"><button id="original" type="button" aria-pressed="false">Before</button><button id="current" type="button" aria-pressed="true">Your room</button></div>
-        </div>
-        <button id="advance" class="primary wide" type="button"></button>
-      </div>
-    </section>
-    <div id="route-status" role="status"></div>
-    <noscript>Enable JavaScript to walk through SECHA City.</noscript>
-  </main>
-  <script type="module" src="/main.js"></script>
+<main id="city">
+  <canvas id="city-world" aria-label="Playable SECHA City streets" tabindex="0"></canvas>
+  <div class="shade" aria-hidden="true"></div>
+  <header class="city-header">
+    <div class="wordmark">SECHA <b>CITY</b></div>
+
+  </header>
+  <section class="mission-hud" aria-label="Current objective">
+    <p class="eyebrow" id="district-label">First commission</p>
+    <h1 id="chapter-title">The House Opens at Dusk</h1>
+    <p id="objective" role="status">Opening the neighbourhood…</p>
+    <p id="result" hidden></p>
+    <div id="drive-hud" hidden><b id="speed"></b><span id="drift-score"></span></div>
+  </section>
+  <aside class="navigation" aria-label="Neighbourhood map">
+    <canvas id="map-canvas" width="340" height="300" aria-label="Map showing your location and next destination"></canvas>
+    <p id="destination"></p>
+  </aside>
+  <div id="controls" class="actions" hidden>
+    <button type="button" id="interact">Accept commission</button>
+    <button type="button" id="follow" hidden>Follow route</button>
+    <button type="button" id="garage" hidden>Garage</button>
+    <button type="button" id="camera" hidden>Cockpit</button>
+    <button type="button" id="drift" hidden>Drift challenge</button>
+  </div>
+  <p class="keys"><b>WASD</b> Move / drive <b>E</b> Interact <b>C</b> Camera <b>Space</b> Handbrake</p>
+  <div id="touch" class="touch" aria-label="Touch controls" hidden>
+    <div><button data-key="KeyA" aria-label="Left">←</button><button data-key="KeyD" aria-label="Right">→</button></div>
+    <div><button data-key="Space" aria-label="Handbrake" id="brake" hidden>Brake</button><button data-key="KeyS" aria-label="Back">↓</button><button data-key="KeyW" aria-label="Forward">↑</button></div>
+  </div>
+  <dialog id="dialog" aria-labelledby="dialog-title">
+    <form method="dialog">
+      <button id="close-dialog" type="submit" value="cancel" aria-label="Close">×</button>
+    </form>
+    <p class="eyebrow" id="dialog-kicker"></p>
+    <h2 id="dialog-title"></h2>
+    <p id="dialog-copy"></p>
+    <div id="dialog-options"></div>
+  </dialog>
+</main>
 </body>
 </html>
