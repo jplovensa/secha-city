@@ -12,3 +12,4 @@
   #roam {top:58px;bottom:auto;max-width:320px}
 }
 .drive-readout {display:flex;flex-wrap:wrap;align-items:center;gap:5px 16px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;color:#f0dabb;font-size:.76rem}
+.cover a.soft{display:inline-block;text-decoration:none}

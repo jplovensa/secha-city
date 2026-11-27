@@ -12,6 +12,10 @@
     "predev": "node tools/fetch-car-assets.mjs"
   },
   "dependencies": {
+    "@babylonjs/core": "9.38.0",
+    "@babylonjs/ktx2decoder": "9.38.0",
+    "@babylonjs/loaders": "9.38.0",
+    "meshoptimizer": "1.3.0",
     "three": "0.180.0"
   },
   "devDependencies": {

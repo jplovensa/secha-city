@@ -16,5 +16,9 @@ function textureDecoder() {
 export default defineConfig({
   base:'./',
   plugins:[textureDecoder()],
-  build:{assetsDir:'assets'},
+  build:{assetsDir:'assets',rollupOptions:{input:{
+    city:new URL('./index.html',import.meta.url).pathname,
+    neighbourhood:new URL('./neighbourhood.html',import.meta.url).pathname,
+  }}},
+  worker:{format:'iife'},
 });

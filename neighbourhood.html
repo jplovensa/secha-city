@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1e2921">
+<title>Keys by Six · SECHA City</title>
+<meta name="description" content="Explore a playable Babylon.js neighbourhood and take on SECHA City’s Keys by Six commission.">
+<script type="module" src="./neighbourhood/main.js"></script>
+</head>
+<body>
+<main id="city">
+  <canvas id="city-world" aria-label="Playable SECHA City streets" tabindex="0"></canvas>
+  <div class="shade" aria-hidden="true"></div>
+  <header class="city-header">
+    <div class="wordmark">SECHA <b>CITY</b><small>NEIGHBOURHOOD PREVIEW</small></div>
+    <a href="./index.html">City menu</a>
+  </header>
+  <section class="mission-hud" aria-label="Current objective">
+    <p class="eyebrow" id="district-label">First commission</p>
+    <h1 id="chapter-title">Keys by Six</h1>
+    <p id="objective" role="status">Opening the neighbourhood…</p>
+    <p id="result" hidden></p>
+    <div id="drive-hud" hidden><b id="speed"></b><span id="drift-score"></span></div>
+  </section>
+  <aside class="navigation" aria-label="Neighbourhood map">
+    <canvas id="map-canvas" width="340" height="300" aria-label="Map showing your location and next destination"></canvas>
+    <p id="destination"></p>
+  </aside>
+  <div id="controls" class="actions" hidden>
+    <button type="button" id="interact">Accept commission</button>
+    <button type="button" id="garage" hidden>Garage</button>
+    <button type="button" id="camera" hidden>Cockpit</button>
+    <button type="button" id="drift" hidden>Drift challenge</button>
+  </div>
+  <p class="keys"><b>WASD</b> Move / drive <b>E</b> Interact <b>C</b> Camera <b>Space</b> Handbrake</p>
+  <div id="touch" class="touch" aria-label="Touch controls" hidden>
+    <div><button data-key="KeyA" aria-label="Left">←</button><button data-key="KeyD" aria-label="Right">→</button></div>
+    <div><button data-key="Space" aria-label="Handbrake" id="brake" hidden>Brake</button><button data-key="KeyS" aria-label="Back">↓</button><button data-key="KeyW" aria-label="Forward">↑</button></div>
+  </div>
+  <dialog id="dialog" aria-labelledby="dialog-title">
+    <form method="dialog">
+      <button id="close-dialog" type="submit" value="cancel" aria-label="Close">×</button>
+    </form>
+    <p class="eyebrow" id="dialog-kicker"></p>
+    <h2 id="dialog-title"></h2>
+    <p id="dialog-copy"></p>
+    <div id="dialog-options"></div>
+  </dialog>
+</main>
+</body>
+</html>

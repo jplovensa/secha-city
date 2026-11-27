@@ -210,3 +210,27 @@ for (const profile of cars) {
   }
 }
 console.log('All three cars can complete and score the drift circuit.');
+
+const { advanceJob, choices: commissionChoices, objective, restoreJob, sites } = await import('../neighbourhood/mission.js');
+const preview = await readFile(new URL('neighbourhood.html',dist),'utf8');
+assert.match(index,/href="\.\/neighbourhood\.html"/);
+assert.match(preview,/type="module" crossorigin src="\.\/assets\//);
+for (const site of Object.values(sites)) assert.ok(onRoad(...site.parking));
+for (const choice of commissionChoices) {
+  let job = restoreJob(null);
+  assert.equal(advanceJob(job,'client'),job);
+  job=advanceJob(job,'studio');
+  assert.equal(objective(job).site,'client');
+  job=advanceJob(job,'client');
+  assert.equal(advanceJob(job,'lab','unknown'),job);
+  assert.equal(objective(job).site,'lab');
+  job=advanceJob(job,'lab',choice.id);
+  assert.deepEqual(restoreJob(job),job);
+  job=advanceJob(job,'client');
+  assert.equal(job.step,'complete');
+  assert.equal(job.choice,choice.id);
+  assert.equal(objective(job).site,null);
+  assert.deepEqual(restoreJob(job),job);
+}
+assert.deepEqual(restoreJob({step:'complete',choice:'bad'}),{step:'source',choice:null});
+console.log('Babylon.js preview entry, street parking and all three commission outcomes passed.');

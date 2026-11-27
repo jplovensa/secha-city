@@ -39,3 +39,11 @@ Story dialogue appears as text. The mission’s optional Pandan Walk audio compa
 - [Five-Door Hatchback by tevy](https://tevy.dev/models/hatchback), CC0 1.0.
 
 - [Classic 1970s Coupé](https://tevy.dev/models/classic-coupe) and [Family Estate Car](https://tevy.dev/models/estate-car) by tevy, CC0 1.0. The build downloads and verifies a pinned version of each model and serves both from the site.
+
+## Keys by Six · Babylon.js neighbourhood
+
+Open **Play Keys by Six** from the city menu. Walk into the studio to accept the commission. Pick up a car, park by Courtyard Apartments, inspect the bedroom, then drive to the Material Lab. Choose whether to substitute the delayed walnut, defer the screen, or reschedule handover. Return to the apartment to close the job and see the finished room. Progress and the chosen vehicle are saved in the browser.
+
+Use **WASD** to walk or drive, drag the view on foot, press **E** to interact, **C** to change the driving camera, and **Space** for the handbrake. The garage is beside the studio. **Drift challenge** is available from the car. Touch players can use the displayed controls. The route, vehicle handling, drift scoring, and vehicle model files are shared with the original game.
+
+The preview uses Babylon.js and WebGL. It includes one connected neighbourhood and one complete commission. The original story, renovation, and city-builder modes are available via the City menu. Babylon’s compressed-model decoders are served alongside the preview.
